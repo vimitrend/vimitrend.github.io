@@ -31,8 +31,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet">
 <style>
   :root{
     --page-bg:#ffffff;
@@ -1611,43 +1610,28 @@ function drawDecor(list){
     card.append(photo, info); card._p = p; grid.appendChild(card); shDeco(card);
   });
 }
-let CATS = ['1 Piece', '2 Piece', '3 Piece'];
+const CATS = ['1 Piece', '2 Piece', '3 Piece'];
 let ACTIVE_CAT = 'All';
-let CAT_EXPANDED = false;
-const CAT_SHOW_MAX = 4; // "All" + 3 categories visible by default
 function getCategory(p){
   if(p.category && CATS.indexOf(p.category) >= 0) return p.category;
   const m = /(?:^|[^0-9])([123])\s*[- ]?\s*(?:piece|pc|pcs)\b/i.exec(p.naam || '');
   return m ? m[1] + ' Piece' : '';
 }
 function renderProducts(list){
-  // Dynamic CATS: products mein jo bhi categories hain woh add karo
-  const dynCats = [];
-  list.forEach(p => { const c = p.category; if(c && dynCats.indexOf(c) < 0 && CATS.indexOf(c) < 0) dynCats.push(c); });
-  CATS = ['1 Piece', '2 Piece', '3 Piece'].concat(dynCats);
   const bar = document.getElementById('catBar');
   const present = CATS.filter(c => list.some(p => getCategory(p) === c));
   if(ACTIVE_CAT !== 'All' && present.indexOf(ACTIVE_CAT) < 0) ACTIVE_CAT = 'All';
   bar.textContent = '';
   if(present.length){
     bar.hidden = false;
-    const allCats = ['All'].concat(present);
-    const showAll = CAT_EXPANDED || allCats.length <= CAT_SHOW_MAX;
-    const visible = showAll ? allCats : allCats.slice(0, CAT_SHOW_MAX);
     const mk = (label, key, n) => {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'cat-chip' + (ACTIVE_CAT === key ? ' on' : '');
-      b.append(label);
-      if(n != null){ const sm = document.createElement('small'); sm.textContent = '(' + n + ')'; b.appendChild(sm); }
+      b.append(label); const sm = document.createElement('small'); sm.textContent = '(' + n + ')'; b.appendChild(sm);
       b.onclick = () => { ACTIVE_CAT = key; renderProducts(list); };
       bar.appendChild(b);
     };
-    visible.forEach(c => mk(c, c, c === 'All' ? list.length : list.filter(p => getCategory(p) === c).length));
-    if(allCats.length > CAT_SHOW_MAX){
-      const tb = document.createElement('button'); tb.type = 'button'; tb.className = 'cat-chip';
-      tb.textContent = showAll ? '▲ Kam karo' : '▼ Aur (' + (allCats.length - CAT_SHOW_MAX) + ')';
-      tb.onclick = () => { CAT_EXPANDED = !CAT_EXPANDED; renderProducts(list); };
-      bar.appendChild(tb);
-    }
+    mk('All', 'All', list.length);
+    present.forEach(c => mk(c, c, list.filter(p => getCategory(p) === c).length));
   } else bar.hidden = true;
   drawProducts(ACTIVE_CAT === 'All' ? list : list.filter(p => getCategory(p) === ACTIVE_CAT));
 }
@@ -2475,19 +2459,9 @@ async function getEffectiveDecorSlides(){
         img.onload = () => {
           const s = Math.min(1, maxSide / Math.max(img.width, img.height));
           const w = Math.round(img.width * s), h = Math.round(img.height * s);
-          // Agar image already chhoti hai to as-is rakho (no upscale)
-          if(s >= 1 && file.type !== 'image/jpeg'){
-            // PNG/WebP — original raho
-            res(fr.result); return;
-          }
           const c = document.createElement('canvas'); c.width = w; c.height = h;
-          const ctx = c.getContext('2d');
-          if(file.type !== 'image/jpeg'){ ctx.clearRect(0,0,w,h); } else { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); }
-          ctx.drawImage(img, 0, 0, w, h);
-          // JPEG ke liye high quality, PNG ke liye PNG rakho
-          const fmt = file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
-          const qual = fmt === 'image/jpeg' ? 1.0 : undefined;
-          res(c.toDataURL(fmt, qual));
+          const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+          res(c.toDataURL('image/jpeg', Math.max(q, 0.92)));
         };
         img.src = fr.result;
       };
@@ -2507,8 +2481,7 @@ async function getEffectiveDecorSlides(){
       <div class="vt-hint">Har size ke aage uska rate likhein. Naya size chahiye to "+ Size Add Karein" dabayein, neeche naya box aa jayega.</div>
       <div class="vt-hint"><b>Packing (optional):</b> har size ke Size aur Rate ke beech me packing ka box hai. Khali chhodenge to wo size piece ke hisaab se bikega. 4 likhenge to customer us size ko "pack" me chunega aur amount apne aap (pack × 4 piece × rate) banega. Rate hamesha 1 piece ka likhein.</div>
       <label>Category (customer isse filter karega)</label>
-      <select id="fCat"><option value="">Auto (naam se pehchane, jaise "3 Piece Set")</option><option>1 Piece</option><option>2 Piece</option><option>3 Piece</option>${(()=>{const extra=JSON.parse(localStorage.getItem('vt_extra_cats')||'[]');return extra.map(c=>`<option>${c}</option>`).join('');})()}<option value="__custom__">+ Naya Category likhein...</option></select>
-      <input type="text" id="fCatCustom" placeholder="Category naam likhein (jaise: Ghaghra, Kurti...)" style="display:none;margin-top:6px;width:100%;padding:10px;border:1px solid #cfc7b8;border-radius:8px;font-family:inherit;font-size:.9rem">
+      <select id="fCat"><option value="">Auto (naam se pehchane, jaise "3 Piece Set")</option><option>1 Piece</option><option>2 Piece</option><option>3 Piece</option></select>
       <label>Colour wali photos (ek saath kai chun sakte hain)</label><input type="file" id="fFile" accept="image/*" multiple>
       <div class="vt-hint"><b>Har photo ka ek colour hota hai.</b> Photo ke neeche colour ka naam likhein (jaise Red, Mustard Yellow). Customer ko wahi naam dikhega aur WhatsApp order mein jayega. Pehli photo (sunehri border wali) card par dikhegi; "Main" dabakar koi bhi photo pehli bana sakte hain.</div>
       <div class="vt-strip" id="fStrip"></div>
@@ -2557,7 +2530,7 @@ async function getEffectiveDecorSlides(){
       setMsg('Photos aa rahi hain...', true);
       let bad = 0;
       for(const f of files){
-        try{ imgs.push({ src: await fileToDataURL(f, 2400, 1.0), name: '' }); drawStrip(); }catch(e){ bad++; }
+        try{ imgs.push({ src: await fileToDataURL(f, 800, 0.75), name: '' }); drawStrip(); }catch(e){ bad++; }
       }
       $('fFile').value = '';
       setMsg(bad ? bad + ' photo padh nahi paaye.' : '');
@@ -2566,31 +2539,6 @@ async function getEffectiveDecorSlides(){
       const u = $('fUrl').value.trim();
       if(!/^https?:\/\//.test(u)) return setMsg('Sahi link likhein (https:// se shuru).');
       imgs.push({ src: u, name: '' }); $('fUrl').value = ''; setMsg(''); drawStrip();
-    };
-    // Custom category handler
-    $('fCat').onchange = () => {
-      const v = $('fCat').value;
-      if(v === '__custom__'){
-        $('fCatCustom').style.display = 'block';
-        $('fCatCustom').focus();
-      } else {
-        $('fCatCustom').style.display = 'none';
-      }
-    };
-    $('fCatCustom').onblur = () => {
-      const newCat = $('fCatCustom').value.trim();
-      if(newCat){
-        // Save to localStorage
-        const extra = JSON.parse(localStorage.getItem('vt_extra_cats')||'[]');
-        if(extra.indexOf(newCat) < 0){ extra.push(newCat); localStorage.setItem('vt_extra_cats', JSON.stringify(extra)); }
-        // Add to select
-        const sel = $('fCat');
-        let found = false;
-        for(const o of sel.options){ if(o.value === newCat){ found = true; break; } }
-        if(!found){ const o = document.createElement('option'); o.value = newCat; o.textContent = newCat; sel.insertBefore(o, sel.options[sel.options.length-1]); }
-        sel.value = newCat;
-        $('fCatCustom').style.display = 'none';
-      }
     };
     $('fCancel').onclick = showPanel;
     $('fSave').onclick = async () => {
