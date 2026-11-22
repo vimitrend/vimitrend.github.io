@@ -705,7 +705,7 @@
 <body>
 
 <div class="topbar">
-  <a href="mailto:vmiskin60@gmail.com">✉ vmiskin60@gmail.com</a>
+  <a href="mailto:vimitrend@gmail.com">✉ vimitrend@gmail.com</a>
 </div>
 
 <header class="hero">
@@ -747,7 +747,7 @@
   <h3 class="site-shop-name">Vimi Trend</h3>
   <div class="sub" id="footerCats">FASHION · DECOR</div>
   <div class="contact-list">
-    <a href="mailto:vmiskin60@gmail.com">vmiskin60@gmail.com</a>
+    <a href="mailto:vimitrend@gmail.com">vimitrend@gmail.com</a>
     <a href="https://wa.me/919146613331" target="_blank" rel="noopener">Order on WhatsApp</a>
   </div>
   <div class="copyright" id="siteCopyright">© <span id="year"></span> Vimi Trend. All rights reserved.</div>
@@ -973,7 +973,7 @@ lightbox.addEventListener('touchend', e => {
 let SITE_CFG = {
   waNumber: '919146613331',
   shopName: 'Vimi Trend',
-  email: 'vmiskin60@gmail.com',
+  email: 'vimitrend@gmail.com',
   cat1Name: 'FASHION', cat1Sub: 'Kurti, Suits & Sets', cat1Icon: '👗',
   cat2Name: 'DECOR',   cat2Sub: 'Night Lamp & Gifting', cat2Icon: '🪔',
   cat1Title: 'Fashion — Latest Collection',
@@ -1141,7 +1141,7 @@ async function shSend(){
   try{
     const files = [];
     for(let i = 0; i < items.length; i++){ files.push(await shBlob(items[i].photo, String(i + 1).padStart(2, '0') + '-' + String(items[i].naam || 'product').split(' — ')[0].replace(/[^\w\- ]+/g, '').trim().slice(0, 40))); }
-    const _siteBase = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.netlify.app').replace(/\/$/,'');
+    const _siteBase = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.github.io').replace(/\/$/,'');
     const text = items.map((p, i) => (i + 1) + '. ' + String(p.naam).split(' — ')[0] + (p.design ? ' (Design No: ' + p.design + ')' : '')).join('\n') + '\n\n' + (SITE_CFG.shopName||'Shop') + ': ' + _siteBase + '/';
     trackWA('Photos Share', items.map(p => p.naam).join(' | '));
     if(navigator.canShare && navigator.canShare({ files })){
@@ -1178,7 +1178,7 @@ document.getElementById('shAll').onclick = () => { [...grid.children].forEach(c 
 document.getElementById('shGo').onclick = shSend;
 document.addEventListener('click', async e => {
   if(!(e.target.closest && e.target.closest('#shareCat'))) return;
-  const url = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.netlify.app').replace(/\/$/,'') + '/', title = (SITE_CFG.shopName||'Shop') + ' — ' + (SITE_CFG.cat1Name||'Fashion') + ' & ' + (SITE_CFG.cat2Name||'Decor'), text = 'Check out the latest ' + (SITE_CFG.shopName||'Shop') + ' collection:';
+  const url = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.github.io').replace(/\/$/,'') + '/', title = (SITE_CFG.shopName||'Shop') + ' — ' + (SITE_CFG.cat1Name||'Fashion') + ' & ' + (SITE_CFG.cat2Name||'Decor'), text = 'Check out the latest ' + (SITE_CFG.shopName||'Shop') + ' collection:';
   trackWA('Catalogue Share', '');
   if(navigator.share){ try{ await navigator.share({ title, text, url }); return; }catch(err){ if(err && err.name === 'AbortError') return; } }
   window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(text + ' ' + url), '_blank', 'noopener');
@@ -1244,7 +1244,7 @@ function cartMessage(){
     const orderData = Object.values(groups).map(g=>[g.d,g.p,g.pk,...g.it]);
     const raw = btoa(unescape(encodeURIComponent(JSON.stringify(orderData))));
     const safe = raw.replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-    const siteUrl = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.netlify.app').replace(/\/$/, '');
+    const siteUrl = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.github.io').replace(/\/$/, '');
     const pdfLink = siteUrl + '/p.html#order=' + safe;
     const sn = SITE_CFG.shopName || 'Vimi Trend';
     const tmpl = SITE_CFG.waPdfMsg || '';
@@ -3550,8 +3550,8 @@ async function getEffectiveDecorSlides(){
 
     wrap.appendChild(sec('Shop ka Naam aur Email'));
     wrap.appendChild(fld('Shop Name', 'shopName', 'Vimi Trend'));
-    wrap.appendChild(fld('Email ID (footer mein dikhegi)', 'email', 'vmiskin60@gmail.com'));
-    wrap.appendChild(fld('Site URL (PDF link ke liye)', 'siteUrl', 'https://vimitrend.netlify.app'));
+    wrap.appendChild(fld('Email ID (footer mein dikhegi)', 'email', 'vimitrend@gmail.com'));
+    wrap.appendChild(fld('Site URL (PDF link ke liye)', 'siteUrl', 'https://vimitrend.github.io'));
 
     wrap.appendChild(sec('Category 1 (pehla section — Fashion jaisa)'));
     wrap.appendChild(fld('Naam (bada)', 'cat1Name', 'FASHION'));
@@ -3686,7 +3686,7 @@ async function getEffectiveDecorSlides(){
       const orderData=Object.values(groups).map(g=>[g.d,g.p,g.pk,...g.it]);
       const raw=btoa(unescape(encodeURIComponent(JSON.stringify(orderData))));
       const safe=raw.replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-      const base = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.netlify.app').replace(/\/$/,'');
+      const base = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.github.io').replace(/\/$/,'');
       return base+'/p.html#order='+safe;
     }catch(e){ return null; }
   }
@@ -4135,6 +4135,32 @@ async function getEffectiveDecorSlides(){
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',handleOrderHash);
   else handleOrderHash();
   window.addEventListener('hashchange',()=>{ if(location.hash.startsWith('#order=')) handleOrderHash(); });
+})();
+</script>
+
+<script>
+/* ---- Exit confirmation ---- */
+(function(){
+  let _cartHasItems = false;
+  // Cart mein kuch hai toh warn karo
+  function checkCart(){
+    try{
+      const c = JSON.parse(localStorage.getItem('vt_cart')||'[]');
+      _cartHasItems = Array.isArray(c) && c.length > 0;
+    }catch(e){ _cartHasItems = false; }
+  }
+  // Har 3 sec mein cart check karo
+  setInterval(checkCart, 3000);
+  checkCart();
+
+  window.addEventListener('beforeunload', function(e){
+    if(_cartHasItems){
+      const msg = 'Aapke cart mein items hain. Kya aap sach mein jaana chahte hain?';
+      e.preventDefault();
+      e.returnValue = msg;
+      return msg;
+    }
+  });
 })();
 </script>
 
