@@ -982,7 +982,7 @@ let SITE_CFG = {
   waOrderMsg: '',   // Single product order message (blank = auto)
   waOfferMsg: '',   // Offer poster message (blank = auto)
   waPdfMsg: '',     // PDF cart message prefix (blank = auto)
-  workerUrl: '',    // Cloudflare Worker URL for short links (e.g. https://vimi-trend-links.XXX.workers.dev)
+  workerUrl: 'https://vimi-trend-links.vimitrend.workers.dev',    // Cloudflare Worker URL for short links
 };
 let WA_NUMBER = SITE_CFG.waNumber;
 
@@ -1010,6 +1010,8 @@ let WA_NUMBER = SITE_CFG.waNumber;
       }
     }
   }catch(e){}
+  // Worker URL kabhi blank na ho — hardcoded fallback
+  if(!SITE_CFG.workerUrl) SITE_CFG.workerUrl = 'https://vimi-trend-links.vimitrend.workers.dev';
   WA_NUMBER = SITE_CFG.waNumber || WA_NUMBER;
   applySiteConfig();
 })();
