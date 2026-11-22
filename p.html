@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vimi Trend — Order PDF</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#f5f5f5;font-family:'Segoe UI',Tahoma,sans-serif;}
+#loading{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:14px;color:#555;}
+.spin{font-size:40px;animation:sp 1s linear infinite;display:block;}
+@keyframes sp{to{transform:rotate(360deg)}}
+.pdf-wrap{max-width:600px;margin:0 auto;background:#fff;min-height:100vh;padding-bottom:80px;}
+.pdf-header{background:linear-gradient(135deg,#2d5a1b,#4a8c2a);color:#fff;padding:20px 16px;text-align:center;}
+.pdf-logo{font-size:24px;font-weight:800;letter-spacing:1px;}
+.pdf-sub{font-size:12px;opacity:.8;margin-top:3px;}
+.pdf-title{background:#f0f0f0;padding:11px 16px;font-size:13px;font-weight:600;color:#333;border-bottom:1px solid #ddd;}
+.order-item{display:flex;gap:12px;padding:14px 16px;border-bottom:1px solid #eee;align-items:flex-start;}
+.order-img{width:80px;height:80px;object-fit:cover;border-radius:10px;flex-shrink:0;cursor:zoom-in;transition:transform .15s;}
+.order-img:active{transform:scale(0.95);}
+.order-img-ph{width:80px;height:80px;border-radius:10px;background:#e8e8e8;display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0;}
+.order-info{flex:1;min-width:0;}
+.order-name{font-size:13px;font-weight:700;color:#222;line-height:1.3;}
+.order-meta{font-size:12px;color:#666;margin-top:4px;line-height:1.7;}
+.order-price{font-size:13px;font-weight:700;color:#2d5a1b;margin-top:5px;}
+.order-total{padding:16px;background:#f0f8ec;border-top:2px solid #2d5a1b;}
+.total-row{display:flex;justify-content:space-between;font-size:16px;font-weight:800;color:#2d5a1b;}
+.order-footer{padding:12px 16px;text-align:center;font-size:11px;color:#999;border-top:1px solid #eee;}
+.btn-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #ddd;padding:10px 14px;display:flex;gap:10px;max-width:600px;margin:0 auto;}
+.btn-print{flex:1;background:#2d5a1b;color:#fff;border:none;padding:13px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;}
+.btn-wa{flex:1;background:#25D366;color:#fff;border:none;padding:13px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;}
+/* Full-screen zoom overlay */
+#imgOv{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:none;align-items:center;justify-content:center;cursor:zoom-out;}
+#imgOv.on{display:flex;}
+#imgOv img{max-width:95vw;max-height:92vh;object-fit:contain;border-radius:8px;}
+.err{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:12px;padding:24px;text-align:center;color:#555;}
+.err h2{color:#c0392b;font-size:18px;}
+@media print{.btn-bar,#imgOv{display:none!important;}.pdf-wrap{padding-bottom:0;}}
+</style>
+</head>
+<body>
+
+<div id="loading"><span class="spin">⏳</span><div style="font-size:15px;color:#555;">Order PDF khul rahi hai...</div></div>
+<div id="pdfDiv"></div>
+<div id="imgOv" onclick="this.classList.remove('on')"><img id="imgOvImg" src="" alt=""></div>
+
+<script>
+// Admin IDB + products.json se ALL products load karo
+// Map: design_code -> {naam, photos[]}
+let PROD_MAP = null; // design_code -> {naam, photos}
+let PROD_NAAM_MAP = null; // naam -> photos (backward compat)
+let SITE_CFG = { shopName: 'Vimi Trend', cat1Name: 'Fashion', cat2Name: 'Decor', waNumber: '919146613331' };
+
+async function getAllProducts(){
+  if(PROD_MAP) return;
+  PROD_MAP = {};
+  PROD_NAAM_MAP = {};
+  const processAll = (arr, cfg) => {
+    if(cfg && typeof cfg === 'object'){
+      SITE_CFG = Object.assign({}, SITE_CFG, cfg);
+    }
+    (arr||[]).forEach(p=>{
+      const gallery = (p.gallery||[]).map(g=>typeof g==='string'?g:(g&&g.src?g.src:null)).filter(Boolean);
+      const photos = [p.photo||null].concat(gallery).filter(Boolean);
+      if(p.sku) PROD_MAP[String(p.sku)] = {naam:p.naam, photos};
+      if(p.design) PROD_MAP[String(p.design)] = {naam:p.naam, photos};
+      if(p.naam) PROD_NAAM_MAP[p.naam] = photos;
+    });
+  };
+  // 1) IDB se try karo
+  try{
+    const db = await new Promise((res,rej)=>{
+      const r = indexedDB.open('vimi_admin',1);
+      r.onsuccess = ()=>res(r.result);
+      r.onerror = ()=>rej();
+      r.onupgradeneeded = e=>e.target.result.createObjectStore('kv');
+    });
+    const getIdb = k => new Promise(res=>{
+      const q = db.transaction('kv').objectStore('kv').get(k);
+      q.onsuccess = ()=>res(q.result||null);
+      q.onerror = ()=>res(null);
+    });
+    const [prods, decor, cfg] = await Promise.all([getIdb('products'), getIdb('decor'), getIdb('vt_config')]);
+    const all = (prods||[]).concat(decor||[]);
+    if(all.length){ processAll(all, cfg); return; }
+  }catch(e){}
+  // 2) Fallback: products.json
+  try{
+    const r = await fetch('/products.json?v='+Date.now(),{cache:'no-store'});
+    if(r.ok){
+      const d = await r.json();
+      processAll((d.products||[]).concat(d.decor||[]), d.config||null);
+    }
+  }catch(e){}
+}
+
+function rupee(n){ return '₹' + Number(n).toLocaleString('en-IN'); }
+
+async function renderPDF(items){
+  if(!PROD_MAP) await getAllProducts();
+  const wrap = document.getElementById('pdfDiv');
+  wrap.innerHTML = '';
+
+  const pdfWrap = document.createElement('div');
+  pdfWrap.className = 'pdf-wrap';
+
+  const shopName = SITE_CFG.shopName || 'Vimi Trend';
+  const cat1 = SITE_CFG.cat1Name || 'Fashion';
+  const cat2 = SITE_CFG.cat2Name || 'Decor';
+  pdfWrap.innerHTML = '<div class="pdf-header"><div class="pdf-logo">🌿 ' + shopName.toUpperCase() + '</div><div class="pdf-sub">' + cat1 + ' • ' + cat2 + '</div></div><div class="pdf-title">📋 Order Details</div>';
+
+  let grandTotal = 0, grandPcs = 0;
+
+  items.forEach(item=>{
+    const row = document.createElement('div');
+    row.className = 'order-item';
+
+    // Design code se product dhundo, phir naam se
+    const designCode = String(item.d || '');
+    const prodEntry = PROD_MAP[designCode] || null;
+    // naam: URL se aaya (purana format) ya IDB se
+    const naam = item.n || (prodEntry && prodEntry.naam) || designCode || 'Product';
+    const photos = (prodEntry && prodEntry.photos) || PROD_NAAM_MAP[naam] || [];
+    const ci = item.ci != null ? item.ci : 0;
+    const photoSrc = photos[ci] || photos[0] || null;
+
+    if(photoSrc){
+      const img = document.createElement('img');
+      img.className = 'order-img';
+      img.src = photoSrc;
+      img.alt = item.n;
+      img.onclick = ()=>{
+        document.getElementById('imgOvImg').src = photoSrc;
+        document.getElementById('imgOv').classList.add('on');
+      };
+      row.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'order-img-ph';
+      ph.textContent = '👗';
+      row.appendChild(ph);
+    }
+
+    // --- Info ---
+    const info = document.createElement('div');
+    info.className = 'order-info';
+
+    const nm = document.createElement('div');
+    nm.className = 'order-name';
+    nm.textContent = naam + (item.d ? ' (Design: ' + item.d + ')' : '');
+    info.appendChild(nm);
+
+    const meta = document.createElement('div');
+    meta.className = 'order-meta';
+    const parts = [];
+    if(item.c) parts.push('Colour: ' + item.c);
+    if(item.s) parts.push('Size: ' + item.s);
+    const pk = item.pk || 1;
+    const totalPcs = item.q * pk;
+    if(pk > 1) parts.push('Qty: ' + item.q + ' Pack × ' + pk + ' pcs = ' + totalPcs + ' pcs');
+    else parts.push('Qty: ' + item.q);
+    meta.innerHTML = parts.join('<br>');
+    info.appendChild(meta);
+
+    const lineTotal = item.p * totalPcs;
+    grandTotal += lineTotal;
+    grandPcs += totalPcs;
+
+    const pr = document.createElement('div');
+    pr.className = 'order-price';
+    pr.textContent = rupee(item.p) + ' × ' + totalPcs + ' pcs = ' + rupee(lineTotal);
+    info.appendChild(pr);
+
+    row.appendChild(info);
+    pdfWrap.appendChild(row);
+  });
+
+  // Total
+  const tot = document.createElement('div');
+  tot.className = 'order-total';
+  tot.innerHTML = '<div class="total-row"><span>Total (' + grandPcs + ' pcs)</span><span>' + rupee(grandTotal) + '</span></div>';
+  pdfWrap.appendChild(tot);
+
+  const footer = document.createElement('div');
+  footer.className = 'order-footer';
+  const waNum = SITE_CFG.waNumber || '919146613331';
+  const waDisp = waNum.startsWith('91') ? '+' + waNum.slice(0,2) + ' ' + waNum.slice(2) : waNum;
+  footer.textContent = shopName + ' — ' + cat1 + ' & ' + cat2 + ' | WhatsApp: ' + waDisp;
+  pdfWrap.appendChild(footer);
+
+  wrap.appendChild(pdfWrap);
+
+  // Buttons
+  const bar = document.createElement('div');
+  bar.className = 'btn-bar';
+  const waLink = 'https://wa.me/' + (SITE_CFG.waNumber || '919146613331');
+  bar.innerHTML = '<button class="btn-print" onclick="window.print()">🖨️ Print / Save PDF</button><button class="btn-wa" onclick="window.open(\'' + waLink + '\',\'_blank\',\'noopener\')">💬 WhatsApp Reply</button>';
+  wrap.appendChild(bar);
+
+  document.getElementById('loading').style.display = 'none';
+  wrap.style.display = 'block';
+}
+
+// ---- Admin orders mein auto-save ----
+function autoSaveOrder(items){
+  try{
+    const ORDERS_KEY = 'vt_orders';
+    const today = new Date().toISOString().slice(0,10);
+    const newOrders = items.map(x=>{
+      const designCode = String(x.d || '');
+      const prodEntry = (PROD_MAP && PROD_MAP[designCode]) || null;
+      const naam = x.n || (prodEntry && prodEntry.naam) || ('Design '+designCode) || 'Product';
+      const pk = x.pk || 1;
+      return {
+        customer: x.cu || 'Customer',
+        date: today,
+        product: naam,
+        colour: x.c || ('Colour '+(( x.ci||0)+1)),
+        size: x.s || '',
+        qty: String((x.q||1)*pk),
+        amount: String((x.p||0)*(x.q||1)*pk),
+        status: 'Pending',
+        note: '',
+        _colIdx: x.ci || 0,
+        _design: designCode
+      };
+    });
+    const existing = JSON.parse(localStorage.getItem(ORDERS_KEY)||'[]');
+    const toAdd = newOrders.filter(no =>
+      !existing.some(e => e.product===no.product && e.colour===no.colour && e.size===no.size && e.date===no.date)
+    );
+    if(toAdd.length) localStorage.setItem(ORDERS_KEY, JSON.stringify([...toAdd, ...existing]));
+  }catch(e){}
+}
+
+// Size number wapas string mein
+const SZ_REV = {0:'XS',1:'S',2:'M',3:'L',4:'XL',5:'XXL',6:'3XL',7:'4XL',8:'5XL',9:'6XL',10:'FREE'};
+
+// Compressed format decode: [[d,p,pk,[ci,s,q],...], ...] -> flat items[]
+function decodeCompressed(parsed){
+  // Check: kya naya format hai? Array of arrays where first element is string (design code)
+  if(!Array.isArray(parsed) || !parsed.length) return [];
+  const first = parsed[0];
+  // Naya format: [[d,p,pk,[ci,s,q],...], ...]
+  if(Array.isArray(first) && typeof first[0] === 'string' && typeof first[1] === 'number'){
+    const items = [];
+    parsed.forEach(group=>{
+      const d = group[0], p = group[1], pk = group[2];
+      for(let i=3; i<group.length; i++){
+        const it = group[i];
+        if(!Array.isArray(it)) continue;
+        const ci = it[0]||0;
+        const sRaw = it[1];
+        const s = SZ_REV[sRaw] !== undefined ? SZ_REV[sRaw] : String(sRaw);
+        const q = it[2]||1;
+        items.push({d, p, pk, ci, s, q, c:'Colour '+(ci+1)});
+      }
+    });
+    return items;
+  }
+  // Purana format: [{n,d,c,s,q,p,pk,ci}, ...]
+  return parsed;
+}
+
+// ---- Main: hash parse karo ----
+(function(){
+  const hash = location.hash || '';
+  if(!hash.startsWith('#order=') || hash.length < 10){
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('pdfDiv').innerHTML = '<div class="err"><h2>❌ Link kaam nahi kar rahi</h2><p>Yeh link expire ho gayi ya galat hai.</p><a href="/" style="color:#2d5a1b;font-weight:600;margin-top:8px;display:block;">Shop par jaayein →</a></div>';
+    return;
+  }
+  try{
+    // URL-safe base64 wapas normal base64 mein convert karo
+    let encoded = hash.slice(7);
+    encoded = encoded.split('&')[0].split('?')[0];
+    encoded = encoded.replace(/-/g,'+').replace(/_/g,'/');
+    while(encoded.length % 4) encoded += '=';
+    const parsed = JSON.parse(decodeURIComponent(escape(atob(encoded))));
+    const items = decodeCompressed(parsed);
+    if(!items.length) throw new Error('empty');
+    // pehle products load karo, phir dono kaam karo
+    getAllProducts().then(()=>{
+      autoSaveOrder(items);
+      renderPDF(items);
+    }).catch(()=>{
+      autoSaveOrder(items);
+      renderPDF(items);
+    });
+  }catch(e){
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('pdfDiv').innerHTML = '<div class="err"><h2>❌ Link galat hai</h2><p>Naya order karein website par.</p><a href="/" style="color:#2d5a1b;font-weight:600;margin-top:8px;display:block;">Shop par jaayein →</a></div>';
+  }
+})();
+</script>
+</body>
+</html>
