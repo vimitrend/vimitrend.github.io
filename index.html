@@ -1227,38 +1227,67 @@ function cartAdd(item, qty){
   cartSave(); cartRefresh();
 }
 
+function buildCartOrderData(){
+  // Compact PDF payload: [[designCode, price, pack, [colourIndex, sizeCode, qty], ...], ...]
+  const SZ={'XS':0,'S':1,'M':2,'L':3,'XL':4,'XXL':5,'2XL':5,'3XL':6,'4XL':7,'5XL':8,'6XL':9,'FREE':10};
+  const groups = {};
+  CART.forEach(x=>{
+    const pk = packOf(x);
+    const key = (x.design||'')+'|'+(x.price||0)+'|'+pk;
+    if(!groups[key]) groups[key]={d:x.design||'',p:x.price||0,pk:pk,it:[]};
+    const sz = SZ[x.size||'']!==undefined?SZ[x.size||'']:x.size||'';
+    groups[key].it.push([x.colorIdx!=null?x.colorIdx:0, sz, x.qty||1]);
+  });
+  return Object.values(groups).map(g=>[g.d,g.p,g.pk,...g.it]);
+}
+
+function encodeCartPdfLink(orderData){
+  const raw = btoa(unescape(encodeURIComponent(JSON.stringify(orderData))));
+  const safe = raw.replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  const siteUrl = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.github.io').replace(/\/$/, '');
+  return siteUrl + '/p.html#order=' + safe;
+}
+
+function makeCartPdfMessage(pdfLink){
+  const sn = SITE_CFG.shopName || 'Vimi Trend';
+  const tmpl = SITE_CFG.waPdfMsg || '';
+  if(tmpl) return tmpl.replace('{link}', pdfLink).replace('{shop}', sn);
+  return 'Hello ' + sn + ',\n\n📄 Order PDF:\n' + pdfLink + '\n\nPlease confirm availability.';
+}
+
+// Long-link fallback remains available if Worker is temporarily unavailable.
 function cartMessage(){
-  try {
-    // ULTRA-SHORT URL: group by design code, size encoded as number
-    // Format per group: [designCode, price, pack, [ci,sizeNum,qty], [ci,sizeNum,qty], ...]
-    // Size encoding: XS=0,S=1,M=2,L=3,XL=4,XXL=5,3XL=6,4XL=7,5XL=8,6XL=9,FREE=10
-    const SZ={'XS':0,'S':1,'M':2,'L':3,'XL':4,'XXL':5,'2XL':5,'3XL':6,'4XL':7,'5XL':8,'6XL':9,'FREE':10};
-    // Group by design+price+pack
-    const groups = {};
-    CART.forEach(x=>{
-      const pk = packOf(x);
-      const key = (x.design||'')+'|'+(x.price||0)+'|'+pk;
-      if(!groups[key]) groups[key]={d:x.design||'',p:x.price||0,pk:pk,it:[]};
-      const sz = SZ[x.size||'']!==undefined?SZ[x.size||'']:x.size||'';
-      groups[key].it.push([x.colorIdx!=null?x.colorIdx:0, sz, x.qty||1]);
-    });
-    // Encode: [[d,p,pk,[ci,s,q],...], ...]
-    const orderData = Object.values(groups).map(g=>[g.d,g.p,g.pk,...g.it]);
-    const raw = btoa(unescape(encodeURIComponent(JSON.stringify(orderData))));
-    const safe = raw.replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-    const siteUrl = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.github.io').replace(/\/$/, '');
-    const pdfLink = siteUrl + '/p.html#order=' + safe;
-    const sn = SITE_CFG.shopName || 'Vimi Trend';
-    const tmpl = SITE_CFG.waPdfMsg || '';
-    if(tmpl) return tmpl.replace('{link}', pdfLink).replace('{shop}', sn);
-    return 'Hello ' + sn + ',\n\n📄 Order PDF:\n' + pdfLink + '\n\nPlease confirm availability.';
-  } catch(e){
+  try { return makeCartPdfMessage(encodeCartPdfLink(buildCartOrderData())); }
+  catch(e){
     const sn = SITE_CFG.shopName || 'Vimi Trend';
     const tmpl = SITE_CFG.waPdfMsg || '';
     if(tmpl) return tmpl.replace('{shop}', sn);
     return 'Hello ' + sn + ',\nMujhe order karna hai. Please confirm availability.';
   }
 }
+
+// Customer cart WhatsApp flow: create a Cloudflare short URL first, then share the PDF link.
+async function cartMessageWithShortUrl(){
+  const orderData = buildCartOrderData();
+  let pdfLink = null;
+  const workerUrl = (SITE_CFG.workerUrl || 'https://vimi-trend-links.vimitrend.workers.dev').replace(/\/$/, '');
+  if(workerUrl){
+    try{
+      const resp = await fetch(workerUrl + '/api/shorten', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({items:orderData})
+      });
+      if(resp.ok){
+        const data = await resp.json();
+        if(data && data.ok && data.shortUrl) pdfLink = data.shortUrl;
+      }
+    }catch(e){ /* use the long PDF URL below as a safe fallback */ }
+  }
+  if(!pdfLink) pdfLink = encodeCartPdfLink(orderData);
+  return makeCartPdfMessage(pdfLink);
+}
+
 function cartLink(){ return 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(cartMessage()); }
 
 function cartRefresh(){
@@ -1323,12 +1352,27 @@ function cartDraw(){
   send.href = cartLink(); send.dataset.track = 'Order List'; send.dataset.what = CART.map(x => x.naam).join(' | ');
   send.innerHTML = '<svg viewBox="0 0 32 32"><path d="M16 2C8.3 2 2 8.3 2 16c0 2.6.7 5.1 2 7.3L2 30l6.9-1.8c2.1 1.2 4.5 1.8 7.1 1.8 7.7 0 14-6.3 14-14S23.7 2 16 2z"/></svg>';
   send.appendChild(document.createTextNode('Send Order on WhatsApp'));
-  send.addEventListener('click', e => {
+  send.addEventListener('click', async e => {
     e.preventDefault();
-    const waLink = cartLink();
-    CART=[]; cartSave();
-    setTimeout(()=>{ cartRefresh(); cartClose(); toast('Order WhatsApp pe ja rahi hai...'); },200);
-    window.open(waLink,'_blank','noopener');
+    // Open the tab immediately so mobile browsers do not block it while the Worker responds.
+    const waWindow = window.open('about:blank','_blank');
+    send.style.pointerEvents='none';
+    send.style.opacity='.65';
+    try{
+      const message = await cartMessageWithShortUrl();
+      const waLink = 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(message);
+      if(waWindow) waWindow.location.href = waLink;
+      else window.location.href = waLink;
+      CART=[]; cartSave();
+      setTimeout(()=>{ cartRefresh(); cartClose(); toast('Order WhatsApp pe ja rahi hai...'); },200);
+    }catch(err){
+      const waLink = cartLink();
+      if(waWindow) waWindow.location.href = waLink;
+      else window.location.href = waLink;
+    }finally{
+      send.style.pointerEvents='';
+      send.style.opacity='';
+    }
   });
   box.appendChild(send);
   const clr = document.createElement('button'); clr.className = 'cart-clear'; clr.type = 'button'; clr.textContent = 'Clear entire list';
