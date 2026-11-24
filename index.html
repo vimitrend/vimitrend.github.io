@@ -713,7 +713,7 @@
 <body>
 
 <div class="topbar">
-  <a href="mailto:vmiskin60@gmail.com">✉ vmiskin60@gmail.com</a>
+  <a href="mailto:vimitrend@gmail.com">✉ vimitrend@gmail.com</a>
 </div>
 
 <header class="hero">
@@ -755,7 +755,7 @@
   <h3 class="site-shop-name">Vimi Trend</h3>
   <div class="sub" id="footerCats">FASHION · DECOR</div>
   <div class="contact-list">
-    <a href="mailto:vmiskin60@gmail.com">vmiskin60@gmail.com</a>
+    <a href="mailto:vimitrend@gmail.com">vimitrend@gmail.com</a>
     <a href="https://wa.me/919146613331" target="_blank" rel="noopener">Order on WhatsApp</a>
   </div>
   <div class="copyright" id="siteCopyright">© <span id="year"></span> Vimi Trend. All rights reserved.</div>
@@ -981,7 +981,7 @@ lightbox.addEventListener('touchend', e => {
 let SITE_CFG = {
   waNumber: '919146613331',
   shopName: 'Vimi Trend',
-  email: 'vmiskin60@gmail.com',
+  email: 'vimitrend@gmail.com',
   cat1Name: 'FASHION', cat1Sub: 'Kurti, Suits & Sets', cat1Icon: '👗',
   cat2Name: 'DECOR',   cat2Sub: 'Night Lamp & Gifting', cat2Icon: '🪔',
   cat1Title: 'Fashion — Latest Collection',
@@ -2972,25 +2972,40 @@ async function getEffectiveDecorSlides(){
     }
     throw new Error('Photo/video data format sahi nahi hai');
   }
+  async function compressUploadImage(blob){
+    if(!(blob instanceof Blob) || !/^image\//i.test(blob.type)) return blob;
+    try{
+      const bmp=await createImageBitmap(blob);
+      const max=1400, scale=Math.min(1,max/Math.max(bmp.width,bmp.height));
+      if(scale===1 && blob.size<180*1024){ bmp.close(); return blob; }
+      const w=Math.max(1,Math.round(bmp.width*scale)), h=Math.max(1,Math.round(bmp.height*scale));
+      const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+      const ctx=canvas.getContext('2d',{alpha:true}); ctx.drawImage(bmp,0,0,w,h); bmp.close();
+      const out=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp',0.82));
+      return out && out.size<blob.size ? out : blob;
+    }catch(e){ return blob; }
+  }
   async function cdnUpload(kind, file){
-    const blob=await asBlob(file);
-    // Fetch a brand-new token for EVERY upload, even when multiple files upload together.
-    const auth=await imagekitAuth();
-    const ext=(blob.type.split('/')[1] || (kind==='video'?'mp4':'jpg')).replace(/[^a-z0-9]/gi,'') || (kind==='video'?'mp4':'jpg');
-    const unique=(Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10));
-    const fileName='vimitrend-'+unique+'.'+ext;
-    const fd=new FormData();
-    fd.append('file',blob,fileName);
-    fd.append('fileName',fileName);
-    fd.append('publicKey',IMAGEKIT_PUBLIC_KEY);
-    fd.append('signature',auth.signature);
-    fd.append('expire',String(auth.expire));
-    fd.append('token',auth.token);
-    fd.append('useUniqueFileName','true');
-    const r=await fetch('https://upload.imagekit.io/api/v1/files/upload',{method:'POST',body:fd});
-    let j={}; try{j=await r.json();}catch(e){}
-    if(!r.ok || !j.url) throw new Error((j.message||j.help||'ImageKit upload failed')+' (HTTP '+r.status+')');
-    return j.url;
+    let blob=await asBlob(file);
+    if(kind==='image') blob=await compressUploadImage(blob);
+    let lastError;
+    for(let attempt=0; attempt<3; attempt++){
+      try{
+        // ImageKit token is single-use: fetch fresh auth and rebuild payload for every retry.
+        const auth=await imagekitAuth();
+        const ext=(blob.type.split('/')[1] || (kind==='video'?'mp4':'jpg')).replace(/[^a-z0-9]/gi,'') || (kind==='video'?'mp4':'jpg');
+        const unique=(Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10));
+        const fileName='vimitrend-'+unique+'.'+ext;
+        const fd=new FormData(); fd.append('file',blob,fileName); fd.append('fileName',fileName);
+        fd.append('publicKey',IMAGEKIT_PUBLIC_KEY); fd.append('signature',auth.signature);
+        fd.append('expire',String(auth.expire)); fd.append('token',auth.token); fd.append('useUniqueFileName','true');
+        const r=await fetch('https://upload.imagekit.io/api/v1/files/upload',{method:'POST',body:fd});
+        let j={}; try{j=await r.json();}catch(e){}
+        if(!r.ok || !j.url) throw new Error((j.message||j.help||'ImageKit upload failed')+' (HTTP '+r.status+')');
+        return j.url;
+      }catch(e){ lastError=e; if(attempt<2) await new Promise(resolve=>setTimeout(resolve,500*(attempt+1))); }
+    }
+    throw lastError || new Error('ImageKit upload failed');
   }
   async function pool(items, n, fn){
     let i = 0;
@@ -3007,11 +3022,13 @@ async function getEffectiveDecorSlides(){
     ['fashion', 'decor'].forEach(k => ((j.highlights && j.highlights[k]) || []).forEach(x => { if(x && x.video && !/^https?:/i.test(x.video)) vids.push(x); }));
     if(j.offer && j.offer.video && !/^https?:/i.test(j.offer.video)) vids.push(j.offer);
     const total = imgs.length + vids.length; let done = 0;
-    const tick = () => { done++; say('ImageKit par upload: ' + done + '/' + total + ' (photo ' + imgs.length + ', video ' + vids.length + ')...'); };
-    await pool(imgs, 3, async ([o, k]) => {
+    const tick = () => { done++; say('Fast Upload ImageKit: ' + done + '/' + total + ' (photo ' + imgs.length + ', video ' + vids.length + ')...'); };
+    await pool(imgs, 25, async ([o, k]) => {
       const src = o[k], key = 'i:' + hstr(src); let u = map[key];
       if(u) st.reused++; else { try{ u = await cdnUpload('image', src); map[key] = u; st.up++; }catch(e){ st.fail++; st.err = e.message; } }
       if(u) o[k] = u; tick();
+      // Persist in batches to reduce IndexedDB contention during large upload runs.
+      if(done % 10 === 0 || done === total){ try{ await idbPut('imagekitmap', map); }catch(e){} }
     });
     await pool(vids, 1, async x => {
       const key = 'v:' + x.video; let u = map[key];
@@ -3454,14 +3471,15 @@ async function getEffectiveDecorSlides(){
   function doXlsExport(){
     const list = ADM_TAB === 'decor' ? CURRENT_DECOR : CURRENT_PRODUCTS;
     if(!list.length){ setMsg('Koi product nahi hai export ke liye.'); return; }
-    const rows = [['Naam','Design No','SKU','Category','Size','Packing','Rate (1 pc)','Colour Names']];
+    const rows = [['Naam','Design No','SKU','Category','Size','Packing','Rate (1 pc)','Colour Names','Image URL']];
     list.forEach(p => {
       const names = (p.colorNames || []).filter(Boolean).join(' | ');
+      const imageUrl = p.photo || (p.gallery && p.gallery[0]) || '';
       if(!p.sizes || !p.sizes.length){
-        rows.push([p.naam, p.design||'', p.sku||'', p.category||'', '', '', '', names]);
+        rows.push([p.naam, p.design||'', p.sku||'', p.category||'', '', '', '', names, imageUrl]);
       } else {
         p.sizes.forEach((s, si) => {
-          rows.push([si===0?p.naam:'', si===0?(p.design||''):'', si===0?(p.sku||''):'', si===0?(p.category||''):'', s.label||'', s.pack||'', s.price||'', si===0?names:'']);
+          rows.push([si===0?p.naam:'', si===0?(p.design||''):'', si===0?(p.sku||''):'', si===0?(p.category||''):'', s.label||'', s.pack||'', s.price||'', si===0?names:'', si===0?imageUrl:'']);
         });
       }
     });
@@ -3482,7 +3500,7 @@ async function getEffectiveDecorSlides(){
     root.innerHTML = `<div class="vt-box">
       <div class="vt-head"><h2>📥 Excel se Import (${ADM_TAB==='decor'?'Decor':'Fashion'})</h2></div>
       <div class="vt-note">Pehle <b>Excel Export</b> se template download karein. Usme products bharo, phir yahan upload karein.<br><br>
-      <b>Format:</b> Naam, Design No, SKU, Category, Size, Packing, Rate (1 pc), Colour Names<br>
+      <b>Format:</b> Naam, Design No, SKU, Category, Size, Packing, Rate (1 pc), Colour Names, Image URL<br>
       Ek product ke kai sizes ho to alag alag rows mein likhein — bas pehli row mein naam, design, SKU likhein.<br><br>
       <b>Colour Names:</b> " | " se alag karein (jaise: Red | Blue | Green)</div>
       <label>CSV ya Excel file chunein (.csv)</label>
@@ -3519,7 +3537,7 @@ async function getEffectiveDecorSlides(){
         if(naam){
           if(cur) parsed.push(cur);
           const colNames = (row[iCol]||'').split('|').map(x=>x.trim()).filter(Boolean);
-          cur = { naam, design:row[iDes]||null, sku:row[iSku]||null, category:row[iCat]||null, sizes:[], colorNames:colNames, photo:null, gallery:[] };
+          cur = { naam, design:row[iDes]||null, sku:row[iSku]||null, category:row[iCat]||null, sizes:[], colorNames:colNames, photo:(row[8]||'').trim()||null, gallery:[] };
         }
         const sz = row[iSz]||'', rate = parseInt((row[iRate]||'').replace(/[^0-9]/g,''),10), pk = parseInt((row[iPk]||'').replace(/[^0-9]/g,''),10);
         if(cur && sz && rate){ cur.sizes.push(pk>1?{label:sz,price:rate,pack:pk}:{label:sz,price:rate}); }
@@ -3539,7 +3557,7 @@ async function getEffectiveDecorSlides(){
       parsed.forEach(p=>{
         const idx = existing.findIndex(e=>e.naam.trim().toLowerCase()===p.naam.trim().toLowerCase());
         if(idx>=0){
-          existing[idx] = {...existing[idx], ...p, photo:existing[idx].photo, gallery:existing[idx].gallery, colorNames:p.colorNames.length?p.colorNames:existing[idx].colorNames};
+          existing[idx] = {...existing[idx], ...p, photo:p.photo || existing[idx].photo, gallery:p.photo ? [] : existing[idx].gallery, colorNames:p.colorNames.length?p.colorNames:existing[idx].colorNames};
           updated++;
         } else { existing.unshift(p); added++; }
       });
@@ -3591,7 +3609,7 @@ async function getEffectiveDecorSlides(){
 
     wrap.appendChild(sec('Shop ka Naam aur Email'));
     wrap.appendChild(fld('Shop Name', 'shopName', 'Vimi Trend'));
-    wrap.appendChild(fld('Email ID (footer mein dikhegi)', 'email', 'vmiskin60@gmail.com'));
+    wrap.appendChild(fld('Email ID (footer mein dikhegi)', 'email', 'vimitrend@gmail.com'));
     wrap.appendChild(fld('Site URL (GitHub Pages)', 'siteUrl', 'https://vimitrend.github.io'));
 
     wrap.appendChild(sec('Category 1 (pehla section — Fashion jaisa)'));
