@@ -1227,67 +1227,38 @@ function cartAdd(item, qty){
   cartSave(); cartRefresh();
 }
 
-function buildCartOrderData(){
-  // Compact PDF payload: [[designCode, price, pack, [colourIndex, sizeCode, qty], ...], ...]
-  const SZ={'XS':0,'S':1,'M':2,'L':3,'XL':4,'XXL':5,'2XL':5,'3XL':6,'4XL':7,'5XL':8,'6XL':9,'FREE':10};
-  const groups = {};
-  CART.forEach(x=>{
-    const pk = packOf(x);
-    const key = (x.design||'')+'|'+(x.price||0)+'|'+pk;
-    if(!groups[key]) groups[key]={d:x.design||'',p:x.price||0,pk:pk,it:[]};
-    const sz = SZ[x.size||'']!==undefined?SZ[x.size||'']:x.size||'';
-    groups[key].it.push([x.colorIdx!=null?x.colorIdx:0, sz, x.qty||1]);
-  });
-  return Object.values(groups).map(g=>[g.d,g.p,g.pk,...g.it]);
-}
-
-function encodeCartPdfLink(orderData){
-  const raw = btoa(unescape(encodeURIComponent(JSON.stringify(orderData))));
-  const safe = raw.replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-  const siteUrl = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.github.io').replace(/\/$/, '');
-  return siteUrl + '/p.html#order=' + safe;
-}
-
-function makeCartPdfMessage(pdfLink){
-  const sn = SITE_CFG.shopName || 'Vimi Trend';
-  const tmpl = SITE_CFG.waPdfMsg || '';
-  if(tmpl) return tmpl.replace('{link}', pdfLink).replace('{shop}', sn);
-  return 'Hello ' + sn + ',\n\n📄 Order PDF:\n' + pdfLink + '\n\nPlease confirm availability.';
-}
-
-// Long-link fallback remains available if Worker is temporarily unavailable.
 function cartMessage(){
-  try { return makeCartPdfMessage(encodeCartPdfLink(buildCartOrderData())); }
-  catch(e){
+  try {
+    // ULTRA-SHORT URL: group by design code, size encoded as number
+    // Format per group: [designCode, price, pack, [ci,sizeNum,qty], [ci,sizeNum,qty], ...]
+    // Size encoding: XS=0,S=1,M=2,L=3,XL=4,XXL=5,3XL=6,4XL=7,5XL=8,6XL=9,FREE=10
+    const SZ={'XS':0,'S':1,'M':2,'L':3,'XL':4,'XXL':5,'2XL':5,'3XL':6,'4XL':7,'5XL':8,'6XL':9,'FREE':10};
+    // Group by design+price+pack
+    const groups = {};
+    CART.forEach(x=>{
+      const pk = packOf(x);
+      const key = (x.design||'')+'|'+(x.price||0)+'|'+pk;
+      if(!groups[key]) groups[key]={d:x.design||'',p:x.price||0,pk:pk,it:[]};
+      const sz = SZ[x.size||'']!==undefined?SZ[x.size||'']:x.size||'';
+      groups[key].it.push([x.colorIdx!=null?x.colorIdx:0, sz, x.qty||1]);
+    });
+    // Encode: [[d,p,pk,[ci,s,q],...], ...]
+    const orderData = Object.values(groups).map(g=>[g.d,g.p,g.pk,...g.it]);
+    const raw = btoa(unescape(encodeURIComponent(JSON.stringify(orderData))));
+    const safe = raw.replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    const siteUrl = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.github.io').replace(/\/$/, '');
+    const pdfLink = siteUrl + '/p.html#order=' + safe;
+    const sn = SITE_CFG.shopName || 'Vimi Trend';
+    const tmpl = SITE_CFG.waPdfMsg || '';
+    if(tmpl) return tmpl.replace('{link}', pdfLink).replace('{shop}', sn);
+    return 'Hello ' + sn + ',\n\n📄 Order PDF:\n' + pdfLink + '\n\nPlease confirm availability.';
+  } catch(e){
     const sn = SITE_CFG.shopName || 'Vimi Trend';
     const tmpl = SITE_CFG.waPdfMsg || '';
     if(tmpl) return tmpl.replace('{shop}', sn);
     return 'Hello ' + sn + ',\nMujhe order karna hai. Please confirm availability.';
   }
 }
-
-// Customer cart WhatsApp flow: create a Cloudflare short URL first, then share the PDF link.
-async function cartMessageWithShortUrl(){
-  const orderData = buildCartOrderData();
-  let pdfLink = null;
-  const workerUrl = (SITE_CFG.workerUrl || 'https://vimi-trend-links.vimitrend.workers.dev').replace(/\/$/, '');
-  if(workerUrl){
-    try{
-      const resp = await fetch(workerUrl + '/api/shorten', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({items:orderData})
-      });
-      if(resp.ok){
-        const data = await resp.json();
-        if(data && data.ok && data.shortUrl) pdfLink = data.shortUrl;
-      }
-    }catch(e){ /* use the long PDF URL below as a safe fallback */ }
-  }
-  if(!pdfLink) pdfLink = encodeCartPdfLink(orderData);
-  return makeCartPdfMessage(pdfLink);
-}
-
 function cartLink(){ return 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(cartMessage()); }
 
 function cartRefresh(){
@@ -1352,27 +1323,12 @@ function cartDraw(){
   send.href = cartLink(); send.dataset.track = 'Order List'; send.dataset.what = CART.map(x => x.naam).join(' | ');
   send.innerHTML = '<svg viewBox="0 0 32 32"><path d="M16 2C8.3 2 2 8.3 2 16c0 2.6.7 5.1 2 7.3L2 30l6.9-1.8c2.1 1.2 4.5 1.8 7.1 1.8 7.7 0 14-6.3 14-14S23.7 2 16 2z"/></svg>';
   send.appendChild(document.createTextNode('Send Order on WhatsApp'));
-  send.addEventListener('click', async e => {
+  send.addEventListener('click', e => {
     e.preventDefault();
-    // Open the tab immediately so mobile browsers do not block it while the Worker responds.
-    const waWindow = window.open('about:blank','_blank');
-    send.style.pointerEvents='none';
-    send.style.opacity='.65';
-    try{
-      const message = await cartMessageWithShortUrl();
-      const waLink = 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(message);
-      if(waWindow) waWindow.location.href = waLink;
-      else window.location.href = waLink;
-      CART=[]; cartSave();
-      setTimeout(()=>{ cartRefresh(); cartClose(); toast('Order WhatsApp pe ja rahi hai...'); },200);
-    }catch(err){
-      const waLink = cartLink();
-      if(waWindow) waWindow.location.href = waLink;
-      else window.location.href = waLink;
-    }finally{
-      send.style.pointerEvents='';
-      send.style.opacity='';
-    }
+    const waLink = cartLink();
+    CART=[]; cartSave();
+    setTimeout(()=>{ cartRefresh(); cartClose(); toast('Order WhatsApp pe ja rahi hai...'); },200);
+    window.open(waLink,'_blank','noopener');
   });
   box.appendChild(send);
   const clr = document.createElement('button'); clr.className = 'cart-clear'; clr.type = 'button'; clr.textContent = 'Clear entire list';
@@ -1545,7 +1501,10 @@ document.addEventListener('keydown', e => { if(e.key === 'Escape' && PK && !docu
 let CURRENT_HL = { fashion: [], decor: [] };
 let BIZ = 'fashion', CURRENT_DECOR = [], CURRENT_DECOR_SLIDES = [], SLIDES_READY = false, _lastSliderList = null;
 const _vurl = {};
-let CDN = { cloud: '', preset: '' };   // Cloudinary (admin > Cloud Storage se set hota hai)
+let CDN = { cloud: '', preset: '' }; // legacy config; ImageKit upload is used for new ZIPs
+const IMAGEKIT_WORKER = 'https://vimitrend-image-uploadrakhein.vimitrend.workers.dev';
+const IMAGEKIT_PUBLIC_KEY = 'public_TBDLzSQF2b8/xNYmLrXYvH9sxX0=';
+let _ikAuth = null;
 async function vidSrc(path){
   if(/^https?:\/\//i.test(path)) return path;
   if(_vurl[path]) return _vurl[path];
@@ -2934,25 +2893,43 @@ async function getEffectiveDecorSlides(){
     st.json = JSON.stringify(j); return st;
   }
 
-  /* ---------- Cloud Storage (Cloudinary): photo/video zip se bahar, link ban jaate hain ---------- */
-  const cdnOn = () => !!(CDN.cloud && CDN.preset);
-  async function persistCdn(c){ try{ await idbSet('cdn', c); }catch(e){ return false; } CDN = { cloud: c.cloud, preset: c.preset }; return true; }
+  /* ---------- ImageKit Storage: photos/videos ZIP se bahar, secure signed upload ---------- */
+  const cdnOn = () => true;
   function hstr(t){ let h = 2166136261 >>> 0; for(let i = 0; i < t.length; i++){ h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return t.length + ':' + h; }
+  async function imagekitAuth(){
+    if(_ikAuth && _ikAuth.expire > Math.floor(Date.now()/1000) + 60) return _ikAuth;
+    const r = await fetch(IMAGEKIT_WORKER + '/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    let a={}; try{a=await r.json();}catch(e){}
+    if(!r.ok || !a.token || !a.signature || !a.expire || !a.publicKey) throw new Error(a.error || ('Auth HTTP ' + r.status));
+    _ikAuth=a; return a;
+  }
+  function asBlob(file){
+    if(file instanceof Blob) return Promise.resolve(file);
+    if(typeof file === 'string' && file.startsWith('data:')){ const parts=file.split(','); const mime=(parts[0].match(/data:([^;]+)/)||[])[1]||'application/octet-stream'; const bin=atob(parts[1]||''); const bytes=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i); return Promise.resolve(new Blob([bytes],{type:mime})); }
+    throw new Error('Photo/video data format sahi nahi hai');
+  }
   async function cdnUpload(kind, file){
-    const fd = new FormData(); fd.append('file', file); fd.append('upload_preset', CDN.preset);
-    const r = await fetch('https://api.cloudinary.com/v1_1/' + encodeURIComponent(CDN.cloud) + '/' + kind + '/upload', { method: 'POST', body: fd });
-    let j = {}; try{ j = await r.json(); }catch(e){}
-    if(!r.ok || !j.secure_url) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status));
-    return j.secure_url.replace('/upload/', kind === 'image' ? '/upload/f_auto,q_auto/' : '/upload/q_auto/');
+    const auth=await imagekitAuth(), blob=await asBlob(file);
+    const ext=(blob.type.split('/')[1]|| (kind==='video'?'mp4':'jpg')).replace(/[^a-z0-9]/gi,'');
+    const fd=new FormData();
+    fd.append('file', blob, 'vimitrend-'+Date.now()+'.'+ext);
+    fd.append('fileName', 'vimitrend-'+Date.now()+'.'+ext);
+    fd.append('publicKey', IMAGEKIT_PUBLIC_KEY);
+    fd.append('signature', auth.signature); fd.append('expire', String(auth.expire)); fd.append('token', auth.token);
+    fd.append('useUniqueFileName','true');
+    const r=await fetch('https://upload.imagekit.io/api/v1/files/upload',{method:'POST',body:fd});
+    let j={}; try{j=await r.json();}catch(e){}
+    if(!r.ok || !j.url) throw new Error((j.message||j.help||'ImageKit upload failed')+' (HTTP '+r.status+')');
+    return j.url;
   }
   async function pool(items, n, fn){
     let i = 0;
     await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while(i < items.length){ const it = items[i++]; await fn(it); } }));
   }
-  /* data ke andar jitni bhi photo (data:image) aur video (videos/..) hain, sab Cloudinary par daal kar link se badal deta hai.
+  /* data ke andar jitni bhi photo (data:image) aur video (videos/..) hain, sab ImageKit par daal kar link se badal deta hai.
      Pehle upload hui cheezein yaad rehti hain, dobara upload nahi hoti. Kuch fail ho to wo zip me hi rehti hain (purane tareeke se). */
   async function externalize(jsonStr, say){
-    const j = JSON.parse(jsonStr), map = (await idbGet('cdnmap')) || {};
+    const j = JSON.parse(jsonStr), map = (await idbGet('imagekitmap')) || {};
     const imgs = [], vids = [], st = { up: 0, reused: 0, fail: 0, err: '' };
     (function walk(o){
       if(Array.isArray(o)) o.forEach((v, i) => { if(typeof v === 'string' && v.indexOf('data:image/') === 0) imgs.push([o, i]); else walk(v); });
@@ -2961,7 +2938,7 @@ async function getEffectiveDecorSlides(){
     ['fashion', 'decor'].forEach(k => ((j.highlights && j.highlights[k]) || []).forEach(x => { if(x && x.video && !/^https?:/i.test(x.video)) vids.push(x); }));
     if(j.offer && j.offer.video && !/^https?:/i.test(j.offer.video)) vids.push(j.offer);
     const total = imgs.length + vids.length; let done = 0;
-    const tick = () => { done++; say('Cloud par bhej raha hoon: ' + done + '/' + total + ' (photo ' + imgs.length + ', video ' + vids.length + ')...'); };
+    const tick = () => { done++; say('ImageKit par upload: ' + done + '/' + total + ' (photo ' + imgs.length + ', video ' + vids.length + ')...'); };
     await pool(imgs, 3, async ([o, k]) => {
       const src = o[k], key = 'i:' + hstr(src);
       let u = map[key];
@@ -2979,7 +2956,7 @@ async function getEffectiveDecorSlides(){
       }
       if(u) x.video = u; tick();
     });
-    try{ await idbPut('cdnmap', map); }catch(e){}
+    try{ await idbPut('imagekitmap', map); }catch(e){}
     st.json = JSON.stringify(j); st.total = total;
     return st;
   }
@@ -2998,18 +2975,15 @@ async function getEffectiveDecorSlides(){
         <div class="vt-msg" id="wkMsg"></div>
       </div>
 
-      <div style="background:#f9f6f2;border:1px solid #e0d5c5;border-radius:10px;padding:12px 14px">
-        <b style="font-size:1.05em">☁️ Cloudinary — Badi Photos / Videos ke liye</b>
-        <div class="vt-note" style="margin:6px 0 10px">Ek baar set kar dein. Uske baad <b>Download Everything</b> dabate hi saari photos aur videos apne aap Cloudinary par chali jayengi aur zip bahut chhoti banegi.</div>
-        <label class="vt-hint">Cloud name (Cloudinary dashboard par dikhta hai)</label>
-        <input class="vt-in" id="cdCloud" placeholder="jaise dxyz123abc" style="width:100%;box-sizing:border-box;padding:10px;margin:4px 0 8px;border:1px solid #cfc7b8;border-radius:8px">
-        <label class="vt-hint">Upload preset ka naam (Unsigned wala)</label>
-        <input class="vt-in" id="cdPreset" placeholder="jaise vimitrend_unsigned" style="width:100%;box-sizing:border-box;padding:10px;margin:4px 0 8px;border:1px solid #cfc7b8;border-radius:8px">
-        <div class="vt-actions"><button class="vt-btn vt-primary" id="cdSave">Save + Test</button><button class="vt-btn vt-danger" id="cdOff">Band Karein</button></div>
-        <div class="vt-msg" id="vtMsg"></div>
+      <div style="background:#f2f8ff;border:1px solid #c9dff5;border-radius:10px;padding:12px 14px">
+        <b style="font-size:1.05em">☁️ ImageKit — Photos / Videos Cloud Storage</b>
+        <div class="vt-note" style="margin:6px 0 10px">ImageKit secure Worker pehle se connect hai. <b>Download Everything</b> dabate hi photos/videos ImageKit par upload hongi aur ZIP mein sirf unke URL rahenge. Original upload quality badli nahi jayegi.</div>
+        <div class="vt-actions"><button class="vt-btn vt-primary" id="ikTest">🧪 ImageKit Connection Test</button></div>
+        <div class="vt-msg" id="ikMsg"></div>
       </div>
     </div>`;
-    $('cdBack').onclick = showPanel; $('cdCloud').value = CDN.cloud; $('cdPreset').value = CDN.preset;
+    $('cdBack').onclick = showPanel;
+    $('ikTest').onclick = async () => { $('ikMsg').textContent='⏳ Secure connection test ho raha hai...'; try{ await imagekitAuth(); $('ikMsg').textContent='✅ ImageKit secure connection successful. Download Everything mein uploads chalu hain.'; }catch(e){ $('ikMsg').textContent='❌ Test fail: '+e.message; } };
 
     /* Worker URL save */
     const wkMsg = id => document.getElementById(id);
@@ -3038,19 +3012,7 @@ async function getEffectiveDecorSlides(){
       wkMsg('wkMsg').textContent = '✅ Worker URL hata di.';
     };
 
-    /* Cloudinary save */
-    $('cdSave').onclick = async () => {
-      const cloud = $('cdCloud').value.trim(), preset = $('cdPreset').value.trim();
-      if(!/^[A-Za-z0-9_-]{2,60}$/.test(cloud) || !/^[A-Za-z0-9_.-]{2,80}$/.test(preset)){ setMsg('Cloud name ya preset ka naam sahi nahi lag raha. Sirf akshar, number, - aur _ chalte hain.'); return; }
-      const old = { cloud: CDN.cloud, preset: CDN.preset }; CDN = { cloud, preset };
-      setMsg('Test ho raha hai...', true);
-      try{
-        await cdnUpload('image', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
-        await persistCdn({ cloud, preset });
-        setMsg('Cloud Storage chalu ho gaya. Ab Download Everything dabane par photos/videos apne aap cloud par jayengi.', true);
-      }catch(e){ CDN = old; setMsg('Test fail: ' + e.message + '. Cloud name aur preset (Unsigned) dobara check karein.'); }
-    };
-    $('cdOff').onclick = async () => { await persistCdn({ cloud: '', preset: '' }); $('cdCloud').value = ''; $('cdPreset').value = ''; setMsg('Band kar diya. Ab zip purane tareeke se banegi.', true); };
+
   }
 
   /* ---------- Poori website ki ZIP (Netlify ke liye) ---------- */
@@ -3178,14 +3140,12 @@ async function getEffectiveDecorSlides(){
         await new Promise(r => setTimeout(r, 900));
       }
       let newJson = snapJson(), cdnNote = '';
-      try{
-        const cz = await compressMedia(newJson, t => setMsg(t, true)); newJson = cz.json;
-        cdnNote += ' | Compress: ' + cz.imgs + ' photo, ' + cz.vids + ' video chhote hue' + (cz.before ? ' (' + (cz.before / 1048576).toFixed(1) + ' MB se ' + (cz.after / 1048576).toFixed(1) + ' MB)' : '');
-      }catch(e){}
+      // Original photo/video quality preserve karne ke liye local compression skip hai.
       if(cdnOn()){
         const ex = await externalize(newJson, t => setMsg(t, true));
+        if(ex.fail){ setMsg('❌ ImageKit par ' + ex.fail + ' upload fail hui: ' + ex.err + '. ZIP nahi banayi gayi, taaki Base64 photos wali badi ZIP galti se upload na ho. Connection check karke dobara Download Everything dabayein.'); return; }
         newJson = ex.json;
-        cdnNote += ' | Cloud: ' + ex.up + ' nayi + ' + ex.reused + ' purani cheezein cloud par' + (ex.fail ? ' (' + ex.fail + ' upload fail hui: ' + ex.err + ' — wo zip me hi hain, zip badi ho sakti hai, dobara Download Everything dabayein)' : '');
+        cdnNote += ' | ImageKit: ' + ex.up + ' nayi + ' + ex.reused + ' pehle se uploaded files';
       }
       setMsg('Zip ban rahi hai, thoda ruko...', true);
       const n = await buildSiteZip(newJson);
@@ -3196,7 +3156,7 @@ async function getEffectiveDecorSlides(){
       const j = n.j, hl = j.highlights || {};
       const sum = ' Isme hai → FASHION: ' + (j.products || []).length + ' products, ' + (j.slides || []).length + ' slider photos, ' + (hl.fashion || []).length + ' highlights | DECOR: ' + (j.decor || []).length + ' products, ' + (j.decorSlides || []).length + ' slider photos, ' + (hl.decor || []).length + ' highlights | Offer poster: ' + (hasOffer(j.offer) ? (j.offer.video ? 'video' : 'photo') : 'nahi') + ' | Videos: ' + n.nvideos + '.';
       const mbSize = (n.blob.size / 1048576).toFixed(1);
-      const sizeWarn = n.blob.size > 24*1024*1024 ? ' ⚠️ ZIP badi hai (' + mbSize + ' MB) — GitHub pe 25MB limit hai, CDN/Cloudinary use karein ya kuch products hatayein.' : '';
+      const sizeWarn = n.blob.size > 24*1024*1024 ? ' ⚠️ ZIP badi hai (' + mbSize + ' MB) — GitHub pe 25MB limit hai, ImageKit upload errors check karein aur dobara Download Everything dabayein.' : '';
       setMsg((oldName ? '1) PURANA backup: ' + oldName + ' (badlav se pehle ka data, sambhal kar rakhein). ' : '') + (oldName ? '2) NAYI zip: ' : 'Nayi zip: ') + newName + ' (' + mbSize + ' MB)' + (n.withSite ? ' — ise GitHub par upload karein.' : ' — website file nahi hai (admin live site se nahi khola), ye sirf backup hai.') + sum + cdnNote + sizeWarn, true);
     }catch(e){
       setMsg('Zip nahi ban saki. Kripya apni site/#admin se dobara koshish karein.');
