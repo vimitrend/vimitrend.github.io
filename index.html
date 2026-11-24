@@ -1,12 +1,8 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light"><head>
 <meta charset="UTF-8">
-<!-- This site is hosted on Netlify. Anyone can build and deploy a site
-     like this one for free: https://netlify.new/?utm_campaign=loops&utm_source=ai-legible&utm_medium=owned&utm_content=comment&utm_id=14003db7-2fb9-4fbd-b723-394b1fff5fdd
-     Netlify hosting facts for this site: static/SSR served via Netlify Edge. -->
-<!-- This site is hosted on Netlify. Anyone can build and deploy a site
-     like this one for free: https://netlify.new/?utm_campaign=loops&utm_source=ai-legible&utm_medium=owned&utm_content=comment&utm_id=14003db7-2fb9-4fbd-b723-394b1fff5fdd
-     Netlify hosting facts for this site: static/SSR served via Netlify Edge. -->
+
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light only">
 <meta name="theme-color" content="#ffffff">
@@ -700,12 +696,24 @@
   .cat-chip.on{ background:var(--accent-600); color:#fff; border-color:var(--accent-600); }
   .cat-chip small{ opacity:.75; margin-left:4px; }
   .cat-empty{ text-align:center; padding:30px 14px; color:var(--ink-600); grid-column:1/-1; }
+
+  /* Vimi Trend: safe exit / order confirmation */
+  .vt-confirm-overlay{position:fixed;inset:0;z-index:10000000;background:rgba(0,0,0,.62);display:none;align-items:center;justify-content:center;padding:20px}
+  .vt-confirm-overlay.on{display:flex}
+  .vt-confirm-card{width:min(100%,380px);background:#fffdf9;color:#3a342c;border-radius:16px;padding:22px 18px;box-shadow:0 16px 50px rgba(0,0,0,.3);text-align:center;font-family:inherit}
+  .vt-confirm-card h3{font-size:1.12rem;margin:0 0 9px;color:#3a342c}
+  .vt-confirm-card p{font-size:.88rem;line-height:1.55;margin:0 0 18px;color:#62594d}
+  .vt-confirm-actions{display:flex;gap:10px}
+  .vt-confirm-actions button{flex:1;border:0;border-radius:9px;padding:12px 10px;font-family:inherit;font-size:.9rem;font-weight:600;cursor:pointer;min-height:44px}
+  .vt-confirm-no{background:#eee7db;color:#3a342c}
+  .vt-confirm-yes{background:#2f5d50;color:#fff}
+
 </style>
 </head>
 <body>
 
 <div class="topbar">
-  <a href="mailto:vimitrend@gmail.com">✉ vimitrend@gmail.com</a>
+  <a href="mailto:vmiskin60@gmail.com">✉ vmiskin60@gmail.com</a>
 </div>
 
 <header class="hero">
@@ -747,7 +755,7 @@
   <h3 class="site-shop-name">Vimi Trend</h3>
   <div class="sub" id="footerCats">FASHION · DECOR</div>
   <div class="contact-list">
-    <a href="mailto:vimitrend@gmail.com">vimitrend@gmail.com</a>
+    <a href="mailto:vmiskin60@gmail.com">vmiskin60@gmail.com</a>
     <a href="https://wa.me/919146613331" target="_blank" rel="noopener">Order on WhatsApp</a>
   </div>
   <div class="copyright" id="siteCopyright">© <span id="year"></span> Vimi Trend. All rights reserved.</div>
@@ -782,7 +790,7 @@
 </a>
 
 <script>
-// Page ka original HTML text save karo (Netlify se fresh fetch) — Download Everything mein yahi use hoga
+// Page ka original HTML text save karo (GitHub Pages se fresh fetch) — Download Everything mein yahi use hoga
 var __SRC = { head: null, tail: [], _fetching: false };
 // Turant background mein fresh fetch karo
 (function(){
@@ -973,7 +981,7 @@ lightbox.addEventListener('touchend', e => {
 let SITE_CFG = {
   waNumber: '919146613331',
   shopName: 'Vimi Trend',
-  email: 'vimitrend@gmail.com',
+  email: 'vmiskin60@gmail.com',
   cat1Name: 'FASHION', cat1Sub: 'Kurti, Suits & Sets', cat1Icon: '👗',
   cat2Name: 'DECOR',   cat2Sub: 'Night Lamp & Gifting', cat2Icon: '🪔',
   cat1Title: 'Fashion — Latest Collection',
@@ -982,7 +990,6 @@ let SITE_CFG = {
   waOrderMsg: '',   // Single product order message (blank = auto)
   waOfferMsg: '',   // Offer poster message (blank = auto)
   waPdfMsg: '',     // PDF cart message prefix (blank = auto)
-  workerUrl: 'https://vimi-trend-links.vimitrend.workers.dev',    // Cloudflare Worker URL for short links
 };
 let WA_NUMBER = SITE_CFG.waNumber;
 
@@ -1010,8 +1017,6 @@ let WA_NUMBER = SITE_CFG.waNumber;
       }
     }
   }catch(e){}
-  // Worker URL kabhi blank na ho — hardcoded fallback
-  if(!SITE_CFG.workerUrl) SITE_CFG.workerUrl = 'https://vimi-trend-links.vimitrend.workers.dev';
   WA_NUMBER = SITE_CFG.waNumber || WA_NUMBER;
   applySiteConfig();
 })();
@@ -1143,7 +1148,7 @@ async function shSend(){
   try{
     const files = [];
     for(let i = 0; i < items.length; i++){ files.push(await shBlob(items[i].photo, String(i + 1).padStart(2, '0') + '-' + String(items[i].naam || 'product').split(' — ')[0].replace(/[^\w\- ]+/g, '').trim().slice(0, 40))); }
-    const _siteBase = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.github.io').replace(/\/$/,'');
+    const _siteBase = window.location.origin;
     const text = items.map((p, i) => (i + 1) + '. ' + String(p.naam).split(' — ')[0] + (p.design ? ' (Design No: ' + p.design + ')' : '')).join('\n') + '\n\n' + (SITE_CFG.shopName||'Shop') + ': ' + _siteBase + '/';
     trackWA('Photos Share', items.map(p => p.naam).join(' | '));
     if(navigator.canShare && navigator.canShare({ files })){
@@ -1180,7 +1185,7 @@ document.getElementById('shAll').onclick = () => { [...grid.children].forEach(c 
 document.getElementById('shGo').onclick = shSend;
 document.addEventListener('click', async e => {
   if(!(e.target.closest && e.target.closest('#shareCat'))) return;
-  const url = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.github.io').replace(/\/$/,'') + '/', title = (SITE_CFG.shopName||'Shop') + ' — ' + (SITE_CFG.cat1Name||'Fashion') + ' & ' + (SITE_CFG.cat2Name||'Decor'), text = 'Check out the latest ' + (SITE_CFG.shopName||'Shop') + ' collection:';
+  const url = window.location.origin + '/', title = (SITE_CFG.shopName||'Shop') + ' — ' + (SITE_CFG.cat1Name||'Fashion') + ' & ' + (SITE_CFG.cat2Name||'Decor'), text = 'Check out the latest ' + (SITE_CFG.shopName||'Shop') + ' collection:';
   trackWA('Catalogue Share', '');
   if(navigator.share){ try{ await navigator.share({ title, text, url }); return; }catch(err){ if(err && err.name === 'AbortError') return; } }
   window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(text + ' ' + url), '_blank', 'noopener');
@@ -1227,39 +1232,66 @@ function cartAdd(item, qty){
   cartSave(); cartRefresh();
 }
 
-function cartMessage(){
-  try {
-    // ULTRA-SHORT URL: group by design code, size encoded as number
-    // Format per group: [designCode, price, pack, [ci,sizeNum,qty], [ci,sizeNum,qty], ...]
-    // Size encoding: XS=0,S=1,M=2,L=3,XL=4,XXL=5,3XL=6,4XL=7,5XL=8,6XL=9,FREE=10
-    const SZ={'XS':0,'S':1,'M':2,'L':3,'XL':4,'XXL':5,'2XL':5,'3XL':6,'4XL':7,'5XL':8,'6XL':9,'FREE':10};
-    // Group by design+price+pack
-    const groups = {};
-    CART.forEach(x=>{
-      const pk = packOf(x);
-      const key = (x.design||'')+'|'+(x.price||0)+'|'+pk;
-      if(!groups[key]) groups[key]={d:x.design||'',p:x.price||0,pk:pk,it:[]};
-      const sz = SZ[x.size||'']!==undefined?SZ[x.size||'']:x.size||'';
-      groups[key].it.push([x.colorIdx!=null?x.colorIdx:0, sz, x.qty||1]);
+// Compact order-link codec: deflate JSON before Base64URL encoding.
+// Legacy #order= links remain readable for old WhatsApp messages.
+async function vtEncodeOrderHash(items){
+  const json=JSON.stringify(items);
+  const bytes=new TextEncoder().encode(json);
+  if(typeof CompressionStream!=='undefined'){
+    try{
+      const stream=new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate'));
+      const packed=new Uint8Array(await new Response(stream).arrayBuffer());
+      let bin=''; for(let i=0;i<packed.length;i+=0x8000) bin+=String.fromCharCode(...packed.subarray(i,i+0x8000));
+      return 'z'+btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    }catch(e){}
+  }
+  let bin=''; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+async function vtDecodeOrderHash(value){
+  const isZip=value.startsWith('z');
+  const token=isZip?value.slice(1):value;
+  const b64=token.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-token.length%4)%4);
+  const bin=atob(b64); const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  let data=bytes;
+  if(isZip){
+    if(typeof DecompressionStream==='undefined') throw new Error('Compressed order link is not supported in this browser');
+    data=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer());
+  }
+  return JSON.parse(new TextDecoder().decode(data));
+}
+
+const VT_SHORTLINK_API = 'https://vimi-trend-links.vimitrend.workers.dev';
+async function vtMakeShortOrderLink(items){
+  try{
+    const r = await fetch(VT_SHORTLINK_API + '/api/shorten', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({items})
     });
-    // Encode: [[d,p,pk,[ci,s,q],...], ...]
-    const orderData = Object.values(groups).map(g=>[g.d,g.p,g.pk,...g.it]);
-    const raw = btoa(unescape(encodeURIComponent(JSON.stringify(orderData))));
-    const safe = raw.replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-    const siteUrl = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.github.io').replace(/\/$/, '');
-    const pdfLink = siteUrl + '/p.html#order=' + safe;
-    const sn = SITE_CFG.shopName || 'Vimi Trend';
-    const tmpl = SITE_CFG.waPdfMsg || '';
-    if(tmpl) return tmpl.replace('{link}', pdfLink).replace('{shop}', sn);
-    return 'Hello ' + sn + ',\n\n📄 Order PDF:\n' + pdfLink + '\n\nPlease confirm availability.';
-  } catch(e){
-    const sn = SITE_CFG.shopName || 'Vimi Trend';
-    const tmpl = SITE_CFG.waPdfMsg || '';
-    if(tmpl) return tmpl.replace('{shop}', sn);
-    return 'Hello ' + sn + ',\nMujhe order karna hai. Please confirm availability.';
+    if(!r.ok) throw new Error('Short link service unavailable');
+    const d = await r.json();
+    if(d && (d.shortUrl || d.url)) return d.shortUrl || d.url;
+  }catch(e){ console.warn('VIMI short link fallback:', e); }
+  const safe = await vtEncodeOrderHash(items);
+  return window.location.origin + '/p.html#order=' + safe;
+}
+
+async function cartMessage(){
+  try {
+    // Compact per-product records; all selected products and variants are retained.
+    const orderData=CART.map(x=>({n:x.naam,p:x.price||0,pk:packOf(x),ci:x.colorIdx!=null?x.colorIdx:0,c:x.color||'',s:x.size||'',q:x.qty||1}));
+    const pdfLink=await vtMakeShortOrderLink(orderData);
+    const sn=SITE_CFG.shopName||'Vimi Trend';
+    const tmpl=SITE_CFG.waPdfMsg||'';
+    if(tmpl) return tmpl.replace('{link}',pdfLink).replace('{shop}',sn);
+    return 'Hello '+sn+',\n\n📄 Order PDF:\n'+pdfLink+'\n\nPlease confirm availability.';
+  }catch(e){
+    const sn=SITE_CFG.shopName||'Vimi Trend';
+    return 'Hello '+sn+',\nMujhe order karna hai. Please confirm availability.';
   }
 }
-function cartLink(){ return 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(cartMessage()); }
+async function cartLink(){ return 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(await cartMessage()); }
 
 function cartRefresh(){
   const n = cartCount();
@@ -1272,7 +1304,7 @@ function cartRefresh(){
 }
 
 function cartOpen(){ cartDraw(); document.getElementById('cartSheet').classList.add('open'); document.body.style.overflow = 'hidden'; }
-document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible'){ try{ const v = JSON.parse(localStorage.getItem(CART_KEY) || '[]'); if(!v.length && CART.length){ CART = []; cartRefresh(); cartClose(); } }catch(e){} } });
+// Cart is intentionally not cleared on app/tab visibility changes.
 window.addEventListener('pageshow', e => { if(e.persisted){ try{ CART = JSON.parse(localStorage.getItem(CART_KEY) || '[]'); cartRefresh(); }catch(x){} } });
 function cartClose(){ document.getElementById('cartSheet').classList.remove('open'); document.body.style.overflow = ''; }
 
@@ -1320,15 +1352,25 @@ function cartDraw(){
   const note = document.createElement('p'); note.className = 'cart-note'; note.textContent = 'This entire list will be sent in a single WhatsApp message.'; box.appendChild(note);
 
   const send = document.createElement('a'); send.className = 'cart-send'; send.target = '_blank'; send.rel = 'noopener';
-  send.href = cartLink(); send.dataset.track = 'Order List'; send.dataset.what = CART.map(x => x.naam).join(' | ');
+  send.href = '#'; send.dataset.track = 'Order List'; send.dataset.what = CART.map(x => x.naam).join(' | ');
   send.innerHTML = '<svg viewBox="0 0 32 32"><path d="M16 2C8.3 2 2 8.3 2 16c0 2.6.7 5.1 2 7.3L2 30l6.9-1.8c2.1 1.2 4.5 1.8 7.1 1.8 7.7 0 14-6.3 14-14S23.7 2 16 2z"/></svg>';
   send.appendChild(document.createTextNode('Send Order on WhatsApp'));
-  send.addEventListener('click', e => {
+  send.addEventListener('click', async e => {
     e.preventDefault();
-    const waLink = cartLink();
-    CART=[]; cartSave();
-    setTimeout(()=>{ cartRefresh(); cartClose(); toast('Order WhatsApp pe ja rahi hai...'); },200);
-    window.open(waLink,'_blank','noopener');
+    if(!CART.length) return;
+    // Open the tab synchronously so Android/Chrome popup blocking does not stop WhatsApp.
+    const waTab = window.open('about:blank', '_blank');
+    try{ sessionStorage.setItem('vt_order_waiting_confirmation', '1'); }catch(err){}
+    cartRefresh(); cartClose();
+    try{
+      const waLink = await cartLink();
+      if(waTab){ try{ waTab.opener=null; }catch(x){} waTab.location.href=waLink; }
+      else window.location.href=waLink;
+      toast('WhatsApp khul raha hai — order bhejne ke baad yahan wapas aayein.');
+    }catch(err){
+      try{ if(waTab) waTab.close(); }catch(x){}
+      toast('WhatsApp link nahi ban payi. Selected products safe hain; dobara try karein.');
+    }
   });
   box.appendChild(send);
   const clr = document.createElement('button'); clr.className = 'cart-clear'; clr.type = 'button'; clr.textContent = 'Clear entire list';
@@ -1501,10 +1543,9 @@ document.addEventListener('keydown', e => { if(e.key === 'Escape' && PK && !docu
 let CURRENT_HL = { fashion: [], decor: [] };
 let BIZ = 'fashion', CURRENT_DECOR = [], CURRENT_DECOR_SLIDES = [], SLIDES_READY = false, _lastSliderList = null;
 const _vurl = {};
-let CDN = { cloud: '', preset: '' }; // legacy config; ImageKit upload is used for new ZIPs
 const IMAGEKIT_WORKER = 'https://vimitrend-image-uploadrakhein.vimitrend.workers.dev';
 const IMAGEKIT_PUBLIC_KEY = 'public_TBDLzSQF2b8/xNYmLrXYvH9sxX0=';
-let _ikAuth = null;
+let CDN = { cloud: 'imagekit', preset: 'worker' }; // Legacy flag; uploads use ImageKit
 async function vidSrc(path){
   if(/^https?:\/\//i.test(path)) return path;
   if(_vurl[path]) return _vurl[path];
@@ -1832,7 +1873,7 @@ async function loadSheetProducts(){
 /* =====================================================================
    ADMIN PANEL KE LIYE STORAGE + PRODUCTS LOADING
    Priority: 1) Admin ne is browser mein jo save kiya  2) products.json
-   (Netlify par upload ki hui)  3) Google Sheet  4) neeche wali PRODUCTS list
+   (GitHub Pages par upload ki hui)  3) Google Sheet  4) neeche wali PRODUCTS list
 ===================================================================== */
 let CURRENT_PRODUCTS = [];
 const IDB_NAME = 'vimi_admin', IDB_STORE = 'kv';
@@ -1920,7 +1961,7 @@ function loadDeployedData(){
   try{
     let c = await idbGet('cdn');
     if(!(c && c.cloud)){ const d = await loadDeployedData(); c = d && d.cdn; }
-    if(c && c.cloud) CDN = { cloud: String(c.cloud), preset: String(c.preset || '') };
+    if(c && c.cloud) CDN = { cloud:'imagekit', preset:'worker' };
   }catch(e){}
 })();
 
@@ -2379,7 +2420,7 @@ async function getEffectiveDecorSlides(){
         <button class="vt-btn vt-primary" id="vtSlides">Slider Photos</button>
         <button class="vt-btn vt-primary" id="vtOffer">Offer Poster</button>
         <button class="vt-btn vt-primary" id="vtHL">Highlights</button>
-        <button class="vt-btn" id="vtCdn">⚙️ Settings</button>
+        <button class="vt-btn" id="vtCdn">Cloud Storage</button>
         <button class="vt-btn vt-primary" id="vtZip">Download Website Zip</button>
         <button class="vt-btn" id="vtImp">Import</button>
         <button class="vt-btn vt-primary" id="vtXlsImp">📥 Excel se Import</button>
@@ -2390,7 +2431,7 @@ async function getEffectiveDecorSlides(){
         <button class="vt-btn vt-danger" id="vtReset">Local Reset</button>
       </div>
       <div class="vt-msg" id="vtMsg"></div>
-      <div class="vt-note">Yahan ke badlav pehle sirf is phone/browser mein dikhte hain. Sabhi customers ko dikhane ke liye: <b>Download Everything</b> dabayein, jo zip mile use seedha Netlify par upload kar dein. Isme Fashion, Decor, slider, Highlights, videos aur offer poster sab aa jata hai.</div>
+      <div class="vt-note">Yahan ke badlav pehle sirf is phone/browser mein dikhte hain. Sabhi customers ko dikhane ke liye: <b>Download Everything</b> dabayein, ZIP ko extract karke uske files GitHub repository mein upload karein. Isme Fashion, Decor, slider, Highlights, videos aur offer poster sab aa jata hai.</div>
       <div id="vtList"></div></div>`;
     $('vtClose').onclick = close;
     $('vtLogout').onclick = () => { unlocked = false; close(); };
@@ -2404,7 +2445,7 @@ async function getEffectiveDecorSlides(){
     $('vtHL').textContent = ADM_TAB === 'decor' ? 'Highlights (Decor)' : 'Highlights (Fashion)';
     $('vtHL').onclick = showHighlights;
     $('vtCdn').onclick = showCloud;
-    { const _wUrl = SITE_CFG.workerUrl || ''; $('vtCdn').textContent = (_wUrl || CDN.cloud) ? '⚙️ Settings ✓' : '⚙️ Settings'; }
+    $('vtCdn').textContent = 'ImageKit Storage ✓';
     $('vtZip').onclick = async () => {
       await downloadZip();
       let still = false; try{ still = !!localStorage.getItem('vt_dirty'); }catch(e){}
@@ -2893,29 +2934,53 @@ async function getEffectiveDecorSlides(){
     st.json = JSON.stringify(j); return st;
   }
 
-  /* ---------- ImageKit Storage: photos/videos ZIP se bahar, secure signed upload ---------- */
+  /* ---------- ImageKit Storage: every file gets its own fresh signed token ---------- */
   const cdnOn = () => true;
+  async function persistCdn(c){
+    // Compatibility for old imported backups; ImageKit is now the active storage provider.
+    try{ await idbSet('cdn', { cloud:'imagekit', preset:'worker' }); }catch(e){}
+    CDN = { cloud:'imagekit', preset:'worker' };
+    return true;
+  }
   function hstr(t){ let h = 2166136261 >>> 0; for(let i = 0; i < t.length; i++){ h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return t.length + ':' + h; }
   async function imagekitAuth(){
-    if(_ikAuth && _ikAuth.expire > Math.floor(Date.now()/1000) + 60) return _ikAuth;
-    const r = await fetch(IMAGEKIT_WORKER + '/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-    let a={}; try{a=await r.json();}catch(e){}
-    if(!r.ok || !a.token || !a.signature || !a.expire || !a.publicKey) throw new Error(a.error || ('Auth HTTP ' + r.status));
-    _ikAuth=a; return a;
+    // IMPORTANT: ImageKit tokens are single-use. Never cache or reuse this response.
+    const r = await fetch(IMAGEKIT_WORKER + '/auth', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:'{}',
+      cache:'no-store'
+    });
+    let a={}; try{ a=await r.json(); }catch(e){}
+    if(!r.ok || !a.token || !a.signature || !a.expire || !a.publicKey){
+      throw new Error(a.error || ('ImageKit auth HTTP ' + r.status));
+    }
+    return a;
   }
-  function asBlob(file){
-    if(file instanceof Blob) return Promise.resolve(file);
-    if(typeof file === 'string' && file.startsWith('data:')){ const parts=file.split(','); const mime=(parts[0].match(/data:([^;]+)/)||[])[1]||'application/octet-stream'; const bin=atob(parts[1]||''); const bytes=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i); return Promise.resolve(new Blob([bytes],{type:mime})); }
+  async function asBlob(file){
+    if(file instanceof Blob) return file;
+    if(typeof file === 'string' && file.startsWith('data:')){
+      const parts=file.split(','), mime=(parts[0].match(/data:([^;]+)/)||[])[1]||'application/octet-stream';
+      const bin=atob(parts[1]||''), bytes=new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+      return new Blob([bytes],{type:mime});
+    }
     throw new Error('Photo/video data format sahi nahi hai');
   }
   async function cdnUpload(kind, file){
-    const auth=await imagekitAuth(), blob=await asBlob(file);
-    const ext=(blob.type.split('/')[1]|| (kind==='video'?'mp4':'jpg')).replace(/[^a-z0-9]/gi,'');
+    const blob=await asBlob(file);
+    // Fetch a brand-new token for EVERY upload, even when multiple files upload together.
+    const auth=await imagekitAuth();
+    const ext=(blob.type.split('/')[1] || (kind==='video'?'mp4':'jpg')).replace(/[^a-z0-9]/gi,'') || (kind==='video'?'mp4':'jpg');
+    const unique=(Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10));
+    const fileName='vimitrend-'+unique+'.'+ext;
     const fd=new FormData();
-    fd.append('file', blob, 'vimitrend-'+Date.now()+'.'+ext);
-    fd.append('fileName', 'vimitrend-'+Date.now()+'.'+ext);
-    fd.append('publicKey', IMAGEKIT_PUBLIC_KEY);
-    fd.append('signature', auth.signature); fd.append('expire', String(auth.expire)); fd.append('token', auth.token);
+    fd.append('file',blob,fileName);
+    fd.append('fileName',fileName);
+    fd.append('publicKey',IMAGEKIT_PUBLIC_KEY);
+    fd.append('signature',auth.signature);
+    fd.append('expire',String(auth.expire));
+    fd.append('token',auth.token);
     fd.append('useUniqueFileName','true');
     const r=await fetch('https://upload.imagekit.io/api/v1/files/upload',{method:'POST',body:fd});
     let j={}; try{j=await r.json();}catch(e){}
@@ -2926,8 +2991,7 @@ async function getEffectiveDecorSlides(){
     let i = 0;
     await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while(i < items.length){ const it = items[i++]; await fn(it); } }));
   }
-  /* data ke andar jitni bhi photo (data:image) aur video (videos/..) hain, sab ImageKit par daal kar link se badal deta hai.
-     Pehle upload hui cheezein yaad rehti hain, dobara upload nahi hoti. Kuch fail ho to wo zip me hi rehti hain (purane tareeke se). */
+  /* Products/media JSON mein base64 photos aur local videos ko ImageKit URLs se replace karo. */
   async function externalize(jsonStr, say){
     const j = JSON.parse(jsonStr), map = (await idbGet('imagekitmap')) || {};
     const imgs = [], vids = [], st = { up: 0, reused: 0, fail: 0, err: '' };
@@ -2940,8 +3004,7 @@ async function getEffectiveDecorSlides(){
     const total = imgs.length + vids.length; let done = 0;
     const tick = () => { done++; say('ImageKit par upload: ' + done + '/' + total + ' (photo ' + imgs.length + ', video ' + vids.length + ')...'); };
     await pool(imgs, 3, async ([o, k]) => {
-      const src = o[k], key = 'i:' + hstr(src);
-      let u = map[key];
+      const src = o[k], key = 'i:' + hstr(src); let u = map[key];
       if(u) st.reused++; else { try{ u = await cdnUpload('image', src); map[key] = u; st.up++; }catch(e){ st.fail++; st.err = e.message; } }
       if(u) o[k] = u; tick();
     });
@@ -2950,7 +3013,7 @@ async function getEffectiveDecorSlides(){
       if(u) st.reused++; else {
         try{
           let b = await idbGet('vid:' + x.video);
-          if(!(b instanceof Blob)){ const r = await fetch(x.video, { cache: 'no-store' }); if(!r.ok) throw new Error('video file nahi mili'); b = await r.blob(); }
+          if(!(b instanceof Blob)){ const r = await fetch(x.video, { cache:'no-store' }); if(!r.ok) throw new Error('video file nahi mili'); b = await r.blob(); }
           u = await cdnUpload('video', b); map[key] = u; st.up++;
         }catch(e){ st.fail++; st.err = e.message; }
       }
@@ -2962,60 +3025,22 @@ async function getEffectiveDecorSlides(){
   }
   function showCloud(){
     if(!unlocked) return showAuth(lsGet(LS_KEY) ? 'login' : 'set', false);
-    const wUrl = SITE_CFG.workerUrl || '';
     root.innerHTML = `<div class="vt-box">
-      <div class="vt-head"><h2>Cloud Storage / Short Links</h2><button class="vt-btn" id="cdBack">Wapas</button></div>
-
-      <div style="background:#fff8ef;border:1px solid #e8c99a;border-radius:10px;padding:12px 14px;margin-bottom:16px">
-        <b style="font-size:1.05em">🔗 Cloudflare Worker — Short Order Links</b>
-        <div class="vt-note" style="margin:6px 0 10px">Order share karte waqt choti link jayegi (jaise <code>vimi-trend-links.XXX.workers.dev/o/abc123</code>). Worker URL neeche daalo aur Save karein.</div>
-        <label class="vt-hint">Worker URL (Cloudflare dashboard se copy karein)</label>
-        <input class="vt-in" id="wkUrl" placeholder="https://vimi-trend-links.XXXX.workers.dev" style="width:100%;box-sizing:border-box;padding:10px;margin:4px 0 8px;border:1px solid #cfc7b8;border-radius:8px" value="${wUrl.replace(/"/g,'&quot;')}">
-        <div class="vt-actions" style="margin-bottom:0"><button class="vt-btn vt-primary" id="wkSave">💾 Save Worker URL</button><button class="vt-btn" id="wkTest">🧪 Test Link</button>${wUrl ? '<button class="vt-btn vt-danger" id="wkOff">Band Karein</button>' : ''}</div>
-        <div class="vt-msg" id="wkMsg"></div>
-      </div>
-
-      <div style="background:#f2f8ff;border:1px solid #c9dff5;border-radius:10px;padding:12px 14px">
-        <b style="font-size:1.05em">☁️ ImageKit — Photos / Videos Cloud Storage</b>
-        <div class="vt-note" style="margin:6px 0 10px">ImageKit secure Worker pehle se connect hai. <b>Download Everything</b> dabate hi photos/videos ImageKit par upload hongi aur ZIP mein sirf unke URL rahenge. Original upload quality badli nahi jayegi.</div>
-        <div class="vt-actions"><button class="vt-btn vt-primary" id="ikTest">🧪 ImageKit Connection Test</button></div>
-        <div class="vt-msg" id="ikMsg"></div>
-      </div>
+      <div class="vt-head"><h2>ImageKit Cloud Storage</h2><button class="vt-btn" id="cdBack">Wapas</button></div>
+      <div class="vt-note">Download Everything dabane par photos/videos ImageKit par upload hongi. Har file ke liye naya secure token liya jata hai; original photo quality ko compress nahi kiya jayega.</div>
+      <div class="vt-actions"><button class="vt-btn vt-primary" id="ikTest">🧪 ImageKit Connection Test</button></div>
+      <div class="vt-msg" id="ikMsg"></div>
     </div>`;
     $('cdBack').onclick = showPanel;
-    $('ikTest').onclick = async () => { $('ikMsg').textContent='⏳ Secure connection test ho raha hai...'; try{ await imagekitAuth(); $('ikMsg').textContent='✅ ImageKit secure connection successful. Download Everything mein uploads chalu hain.'; }catch(e){ $('ikMsg').textContent='❌ Test fail: '+e.message; } };
-
-    /* Worker URL save */
-    const wkMsg = id => document.getElementById(id);
-    $('wkSave').onclick = async () => {
-      const url = ($('wkUrl').value||'').trim().replace(/\/$/,'');
-      if(url && !/^https:\/\/.+\.workers\.dev$/i.test(url)){ wkMsg('wkMsg').textContent = '❌ URL sahi nahi lagi. Example: https://vimi-trend-links.XXXX.workers.dev'; return; }
-      SITE_CFG.workerUrl = url;
-      try{
-        const db = await openIDB(); const tx = db.transaction('kv','readwrite'); tx.objectStore('kv').put(SITE_CFG,'site_cfg'); await new Promise((r,j)=>{tx.oncomplete=r;tx.onerror=j;});
-      }catch(e){}
-      wkMsg('wkMsg').textContent = url ? '✅ Worker URL save ho gayi! Ab orders share karne par choti link jayegi.' : '✅ Band kar diya. Wapas lambi link jayegi.';
-      try{ const btn=$('vtCdn'); if(btn){ const _wU=SITE_CFG.workerUrl||''; btn.textContent=(_wU||CDN.cloud)?'⚙️ Settings ✓':'⚙️ Settings'; } }catch(e){}
+    $('ikTest').onclick = async () => {
+      $('ikTest').disabled=true; $('ikMsg').textContent='⏳ Secure connection test ho raha hai...';
+      try{ await imagekitAuth(); $('ikMsg').textContent='✅ ImageKit secure connection successful. Download Everything par har file ke liye fresh token milega.'; }
+      catch(e){ $('ikMsg').textContent='❌ Test fail: '+e.message; }
+      finally{ $('ikTest').disabled=false; }
     };
-    $('wkTest').onclick = async () => {
-      const url = ($('wkUrl').value||'').trim().replace(/\/$/,'');
-      if(!url){ wkMsg('wkMsg').textContent = '⚠️ Pehle Worker URL daalo.'; return; }
-      wkMsg('wkMsg').textContent = '⏳ Test ho raha hai...';
-      try{
-        const r = await fetch(url+'/health'); const d = await r.json();
-        wkMsg('wkMsg').textContent = d.ok ? '✅ Worker kaam kar raha hai!' : '❌ Worker ne galat response diya: '+JSON.stringify(d);
-      }catch(e){ wkMsg('wkMsg').textContent = '❌ Connect nahi ho saka: '+e.message; }
-    };
-    if($('wkOff')) $('wkOff').onclick = async () => {
-      $('wkUrl').value = ''; SITE_CFG.workerUrl = '';
-      try{ const db = await openIDB(); const tx = db.transaction('kv','readwrite'); tx.objectStore('kv').put(SITE_CFG,'site_cfg'); await new Promise((r,j)=>{tx.oncomplete=r;tx.onerror=j;}); }catch(e){}
-      wkMsg('wkMsg').textContent = '✅ Worker URL hata di.';
-    };
-
-
   }
 
-  /* ---------- Poori website ki ZIP (Netlify ke liye) ---------- */
+  /* ---------- Poori website ki ZIP (GitHub Pages ke liye) ---------- */
   const crcT = (() => { const t = new Uint32Array(256); for(let n = 0; n < 256; n++){ let c = n; for(let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
   function crc32(u8){ let c = 0xFFFFFFFF; for(let i = 0; i < u8.length; i++) c = crcT[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
   function makeZip(files){
@@ -3042,7 +3067,7 @@ async function getEffectiveDecorSlides(){
     const files = [], enc = new TextEncoder(); let withSite = false;
     // Pehle current page (pristineHtml) se try karo — yahi latest version hai
     try{ const html = pristineHtml(); if(html && /vt_admin_hash/.test(html)){ files.push({ name: 'index.html', data: enc.encode(html) }); withSite = true; } }catch(e){}
-    // Fallback: Netlify se fetch karo (agar pristineHtml kaam na kare)
+    // Fallback: GitHub Pages se fetch karo (agar pristineHtml kaam na kare)
     if(!withSite){
       try{
         const r = await fetch(location.href.split('#')[0].split('?')[0], { cache: 'no-store' });
@@ -3052,53 +3077,15 @@ async function getEffectiveDecorSlides(){
         }
       }catch(e){}
     }
-    // Logo: pehle IDB se, phir Netlify se
+    // Logo: pehle IDB se, phir GitHub Pages se
     if(withSite && !files.some(f => f.name === 'logo.jpg')){
       try{ if(/^data:image\//.test(LOGO_SRC)){ const lb = await (await fetch(LOGO_SRC)).blob(); files.push({ name: 'logo.jpg', data: new Uint8Array(await lb.arrayBuffer()) }); } }catch(e){}
       if(!files.some(f => f.name === 'logo.jpg')){
         try{ const lr = await fetch('logo.jpg', { cache: 'no-store' }); if(lr.ok) files.push({ name: 'logo.jpg', data: new Uint8Array(await lr.arrayBuffer()) }); }catch(e){}
       }
     }
-    // Hamesha images compress karo — size 1200px max, JPEG 82% — file chhoti rahegi
-    let finalJson = jsonStr;
-    try{
-      const parsed = JSON.parse(jsonStr);
-      const compressImg = (src) => {
-        if(!src || !src.startsWith('data:image/')) return Promise.resolve(src);
-        return new Promise(res => {
-          const img2 = new Image();
-          img2.onload = () => {
-            const c2 = document.createElement('canvas');
-            let w2=img2.width, h2=img2.height;
-            const mx=1200; // Max 1200px — aankhon ko fark nahi dikhega
-            if(Math.max(w2,h2)>mx){ const sc=mx/Math.max(w2,h2); w2=Math.round(w2*sc); h2=Math.round(h2*sc); }
-            c2.width=w2; c2.height=h2;
-            c2.getContext('2d').drawImage(img2,0,0,w2,h2);
-            const compressed = c2.toDataURL('image/jpeg', 0.82);
-            // Sirf tab use karo agar chhota ho
-            res(compressed.length < src.length ? compressed : src);
-          };
-          img2.onerror = () => res(src);
-          img2.src = src;
-        });
-      };
-      const compressArr = async (arr) => {
-        if(!Array.isArray(arr)) return arr;
-        return Promise.all(arr.map(async p => {
-          const np = {...p};
-          if(np.photo) np.photo = await compressImg(np.photo);
-          if(np.gallery) np.gallery = await Promise.all((np.gallery||[]).map(compressImg));
-          return np;
-        }));
-      };
-      setMsg('Images compress ho rahi hain...', true);
-      parsed.products = await compressArr(parsed.products);
-      parsed.decor = await compressArr(parsed.decor);
-      finalJson = JSON.stringify(parsed);
-      const mb = (new Blob([finalJson]).size/1048576).toFixed(1);
-      setMsg('Zip ban rahi hai... (products.json: ' + mb + ' MB)', true);
-    }catch(e){}
-    files.push({ name: 'products.json', data: enc.encode(finalJson) });
+    // ImageKit URLs keep ZIP small; original product photo bytes are never resized or recompressed.
+    files.push({ name: 'products.json', data: enc.encode(jsonStr) });
     // p.html hamesha zip mein add karo
     if(withSite){
       try{
@@ -3139,11 +3126,14 @@ async function getEffectiveDecorSlides(){
         await saveBlob(o.blob, oldName);
         await new Promise(r => setTimeout(r, 900));
       }
+      // Original photos/videos are uploaded without local recompression so their quality stays unchanged.
       let newJson = snapJson(), cdnNote = '';
-      // Original photo/video quality preserve karne ke liye local compression skip hai.
       if(cdnOn()){
         const ex = await externalize(newJson, t => setMsg(t, true));
-        if(ex.fail){ setMsg('❌ ImageKit par ' + ex.fail + ' upload fail hui: ' + ex.err + '. ZIP nahi banayi gayi, taaki Base64 photos wali badi ZIP galti se upload na ho. Connection check karke dobara Download Everything dabayein.'); return; }
+        if(ex.fail){
+          setMsg('❌ ImageKit par ' + ex.fail + ' upload fail hui: ' + ex.err + '. ZIP abhi nahi banayi gayi, taaki badi Base64 photos wali ZIP galti se upload na ho. Dobara Download Everything dabayein; jo files pehle upload ho chuki hain wo reuse hongi, sirf failed files retry hongi.');
+          return;
+        }
         newJson = ex.json;
         cdnNote += ' | ImageKit: ' + ex.up + ' nayi + ' + ex.reused + ' pehle se uploaded files';
       }
@@ -3156,7 +3146,7 @@ async function getEffectiveDecorSlides(){
       const j = n.j, hl = j.highlights || {};
       const sum = ' Isme hai → FASHION: ' + (j.products || []).length + ' products, ' + (j.slides || []).length + ' slider photos, ' + (hl.fashion || []).length + ' highlights | DECOR: ' + (j.decor || []).length + ' products, ' + (j.decorSlides || []).length + ' slider photos, ' + (hl.decor || []).length + ' highlights | Offer poster: ' + (hasOffer(j.offer) ? (j.offer.video ? 'video' : 'photo') : 'nahi') + ' | Videos: ' + n.nvideos + '.';
       const mbSize = (n.blob.size / 1048576).toFixed(1);
-      const sizeWarn = n.blob.size > 24*1024*1024 ? ' ⚠️ ZIP badi hai (' + mbSize + ' MB) — GitHub pe 25MB limit hai, ImageKit upload errors check karein aur dobara Download Everything dabayein.' : '';
+      const sizeWarn = n.blob.size > 24*1024*1024 ? ' ⚠️ ZIP badi hai (' + mbSize + ' MB) — GitHub pe 25MB limit hai; ImageKit upload status check karein.' : '';
       setMsg((oldName ? '1) PURANA backup: ' + oldName + ' (badlav se pehle ka data, sambhal kar rakhein). ' : '') + (oldName ? '2) NAYI zip: ' : 'Nayi zip: ') + newName + ' (' + mbSize + ' MB)' + (n.withSite ? ' — ise GitHub par upload karein.' : ' — website file nahi hai (admin live site se nahi khola), ye sirf backup hai.') + sum + cdnNote + sizeWarn, true);
     }catch(e){
       setMsg('Zip nahi ban saki. Kripya apni site/#admin se dobara koshish karein.');
@@ -3223,7 +3213,7 @@ async function getEffectiveDecorSlides(){
       const u = $('stUrl').value.trim();
       if(u && !/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(u)){ setMsg('URL sahi nahi lag raha. Ye https://script.google.com/macros/s/.../exec jaisa hona chahiye.'); return; }
       try{ localStorage.setItem('vt_stats_key', $('stKey').value.trim()); }catch(e){}
-      if(await persistTracker(u)){ setMsg(u ? 'Save ho gaya. Sabhi customers ke liye chalu karne ke liye Download Everything karke Netlify par upload karein.' : 'Tracking band kar di.', true); load(); }
+      if(await persistTracker(u)){ setMsg(u ? 'Save ho gaya. Sabhi customers ke liye chalu karne ke liye Download Everything ki ZIP extract karke GitHub repository mein upload karein.' : 'Tracking band kar di.', true); load(); }
     };
     $('stTest').onclick = () => { if(!TRACK.url){ setMsg('Pehle URL save karein.'); return; } trackWA('Test', 'Admin test'); setMsg('Test click bheja. 5-10 second baad Save + Ginti Dikhayein dabayein.', true); };
     load();
@@ -3556,8 +3546,8 @@ async function getEffectiveDecorSlides(){
 
     wrap.appendChild(sec('Shop ka Naam aur Email'));
     wrap.appendChild(fld('Shop Name', 'shopName', 'Vimi Trend'));
-    wrap.appendChild(fld('Email ID (footer mein dikhegi)', 'email', 'vimitrend@gmail.com'));
-    wrap.appendChild(fld('Site URL (PDF link ke liye)', 'siteUrl', 'https://vimitrend.github.io'));
+    wrap.appendChild(fld('Email ID (footer mein dikhegi)', 'email', 'vmiskin60@gmail.com'));
+    wrap.appendChild(fld('Site URL (GitHub Pages)', 'siteUrl', 'https://vimitrend.github.io'));
 
     wrap.appendChild(sec('Category 1 (pehla section — Fashion jaisa)'));
     wrap.appendChild(fld('Naam (bada)', 'cat1Name', 'FASHION'));
@@ -3671,7 +3661,7 @@ async function getEffectiveDecorSlides(){
   }
 
   // Helper: order rows ko compressed URL format mein encode karo (chhota link)
-  function encodeOrdersLink(rows){
+  async function encodeOrdersLink(rows){
     try{
       const SZ={'XS':0,'S':1,'M':2,'L':3,'XL':4,'XXL':5,'2XL':5,'3XL':6,'4XL':7,'5XL':8,'6XL':9,'FREE':10};
       const allP=[...CURRENT_PRODUCTS,...CURRENT_DECOR];
@@ -3689,11 +3679,8 @@ async function getEffectiveDecorSlides(){
         const qty=parseInt(o.qty)||1;
         groups[key].it.push([ci, sz, qty]);
       });
-      const orderData=Object.values(groups).map(g=>[g.d,g.p,g.pk,...g.it]);
-      const raw=btoa(unescape(encodeURIComponent(JSON.stringify(orderData))));
-      const safe=raw.replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-      const base = (SITE_CFG.siteUrl || window.location.origin || 'https://vimitrend.github.io').replace(/\/$/,'');
-      return base+'/p.html#order='+safe;
+      const orderData=rows.map(o=>({n:o.product||'',p:parseInt(o.amount)||0,pk:1,ci:Math.max(0,(allP.find(p=>p.naam===o.product)?getColors(allP.find(p=>p.naam===o.product)).findIndex(c=>c.name===o.colour):0)),c:o.colour||'',s:o.size||'',q:parseInt(o.qty)||1,cu:o.customer||''}));
+      return await vtMakeShortOrderLink(orderData);
     }catch(e){ return null; }
   }
 
@@ -3803,32 +3790,12 @@ async function getEffectiveDecorSlides(){
       sBtn.textContent='🔗 Share'; sBtn.title='PDF link WhatsApp pe share karo';
       sBtn.onclick=async()=>{
         try{
-          sBtn.textContent='⏳...'; sBtn.disabled=true;
-          const rows=group.map(g=>g.o);
+          const link=await encodeOrdersLink(group.map(g=>g.o));
+          if(!link){ alert('Link ban nahi saka'); return; }
           const sn=SITE_CFG.shopName||'Vimi Trend';
-          let link=null;
-          // Pehle Cloudflare Worker se short link lene ki koshish karo
-          const wUrl=(SITE_CFG.workerUrl||'').replace(/\/$/,'');
-          if(wUrl){
-            try{
-              const resp=await fetch(wUrl+'/api/shorten',{
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({items:rows})
-              });
-              if(resp.ok){
-                const data=await resp.json();
-                if(data.shortUrl) link=data.shortUrl;
-              }
-            }catch(e){}
-          }
-          // Fallback: purana compressed link
-          if(!link) link=encodeOrdersLink(rows);
-          if(!link){ sBtn.textContent='🔗 Share'; sBtn.disabled=false; alert('Link ban nahi saka'); return; }
-          const msg='Hello '+sn+',\n\n📄 Order PDF:\n'+link+'\n\nPlease confirm availability.';
+          const msg='Hello '+sn+',\n\n📄 Order PDF:\n'+link+'\n\nCustomer: '+(firstO.customer||'')+(firstO.date?'\nDate: '+firstO.date:'');
           window.open('https://wa.me/'+(WA_NUMBER||'919146613331')+'?text='+encodeURIComponent(msg),'_blank','noopener');
-          sBtn.textContent='🔗 Share'; sBtn.disabled=false;
-        }catch(e){ sBtn.textContent='🔗 Share'; sBtn.disabled=false; alert('Link ban nahi saka'); }
+        }catch(e){ alert('Link ban nahi saka'); }
       };
 
       // Delete button — group ke saare rows delete karo
@@ -3986,13 +3953,13 @@ async function getEffectiveDecorSlides(){
   document.addEventListener('keydown', e => { if(e.key === 'Escape' && !root.hidden) close(); });
 
   // #order=BASE64 → seedha PDF + admin mein save (WhatsApp link se aane par)
-  function checkOrderHash(){
+  async function checkOrderHash(){
     const hash = location.hash || '';
     if(!hash.startsWith('#order=')) return;
     history.replaceState(null,'',location.pathname);
     try{
       const encoded = hash.slice(7);
-      const cartItems = JSON.parse(decodeURIComponent(escape(atob(encoded))));
+      const cartItems = await vtDecodeOrderHash(encoded);
       if(!Array.isArray(cartItems)||!cartItems.length) return;
       const doShow = () => {
         const allProds=[...CURRENT_PRODUCTS,...CURRENT_DECOR];
@@ -4073,12 +4040,12 @@ async function getEffectiveDecorSlides(){
 
 // ── WhatsApp PDF link handler ── runs OUTSIDE admin, works for any visitor
 (function(){
-  function handleOrderHash(){
+  async function handleOrderHash(){
     const hash = location.hash || '';
     if(!hash.startsWith('#order=')) return;
     history.replaceState(null,'',location.pathname+location.search);
     let cartItems;
-    try{ cartItems = JSON.parse(decodeURIComponent(escape(atob(hash.slice(7))))); }
+    try{ cartItems = await vtDecodeOrderHash(hash.slice(7)); }
     catch(e){ return; }
     if(!Array.isArray(cartItems)||!cartItems.length) return;
 
@@ -4144,29 +4111,84 @@ async function getEffectiveDecorSlides(){
 })();
 </script>
 
-<script>
-/* ---- Exit confirmation ---- */
-(function(){
-  let _cartHasItems = false;
-  // Cart mein kuch hai toh warn karo
-  function checkCart(){
-    try{
-      const c = JSON.parse(localStorage.getItem('vt_cart')||'[]');
-      _cartHasItems = Array.isArray(c) && c.length > 0;
-    }catch(e){ _cartHasItems = false; }
-  }
-  // Har 3 sec mein cart check karo
-  setInterval(checkCart, 3000);
-  checkCart();
 
-  window.addEventListener('beforeunload', function(e){
-    if(_cartHasItems){
-      const msg = 'Aapke cart mein items hain. Kya aap sach mein jaana chahte hain?';
-      e.preventDefault();
-      e.returnValue = msg;
-      return msg;
+
+<!-- Safe confirmation: cart stays until the customer confirms a successful WhatsApp order or clears it manually. -->
+<div class="vt-confirm-overlay" id="vtConfirmOverlay" role="dialog" aria-modal="true" aria-labelledby="vtConfirmTitle">
+  <div class="vt-confirm-card">
+    <h3 id="vtConfirmTitle">Website se bahar nikalna hai?</h3>
+    <p id="vtConfirmMessage">Aapke selected products safe rahenge. Kya aap website se exit karna chahte hain?</p>
+    <div class="vt-confirm-actions">
+      <button type="button" class="vt-confirm-no" id="vtConfirmNo">No, yahin rahen</button>
+      <button type="button" class="vt-confirm-yes" id="vtConfirmYes">Yes</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const overlay=document.getElementById('vtConfirmOverlay');
+  const title=document.getElementById('vtConfirmTitle');
+  const message=document.getElementById('vtConfirmMessage');
+  const yes=document.getElementById('vtConfirmYes');
+  const no=document.getElementById('vtConfirmNo');
+  if(!overlay||!yes||!no) return;
+  let mode='exit';
+  let allowExit=false;
+  let dialogOpen=false;
+  function show(which){
+    mode=which; dialogOpen=true;
+    if(which==='order'){
+      title.textContent='Kya order successfully send ho gaya?';
+      message.textContent='Agar WhatsApp par order bhej diya hai to Yes dabayein — selected products clear ho jayenge. No dabane par selection safe rahega.';
+      yes.textContent='Yes, order sent'; no.textContent='No, keep products';
+    }else{
+      title.textContent='Website se bahar nikalna hai?';
+      message.textContent='Aapke selected products safe rahenge. Kya aap website se exit karna chahte hain?';
+      yes.textContent='Yes, Exit'; no.textContent='No, yahin rahen';
     }
+    overlay.classList.add('on');
+  }
+  function hide(){dialogOpen=false;overlay.classList.remove('on');}
+  function clearCartAfterConfirmation(){
+    try{ localStorage.setItem('vt_cart_v1','[]'); }catch(e){}
+    try{ sessionStorage.removeItem('vt_order_waiting_confirmation'); }catch(e){}
+    // The cart variables are lexical globals in the site's main script.
+    try{ CART.length=0; cartSave(); cartRefresh(); cartClose(); }catch(e){}
+    hide();
+    try{ if(typeof toast==='function') toast('Order selection clear ho gayi. Dhanyawad!'); }catch(e){}
+  }
+  no.addEventListener('click',function(){
+    if(mode==='order'){
+      try{ sessionStorage.removeItem('vt_order_waiting_confirmation'); }catch(e){}
+    }
+    hide();
   });
+  yes.addEventListener('click',function(){
+    if(mode==='order'){ clearCartAfterConfirmation(); return; }
+    hide(); allowExit=true;
+    // Skip the temporary guard entry and return to the page before this website.
+    history.go(-2);
+  });
+  overlay.addEventListener('click',function(e){ if(e.target===overlay) no.click(); });
+
+  // Browser / Android Back: first ask. No keeps the user here; Yes exits.
+  try{ history.pushState({vtExitGuard:true},'',location.href); }catch(e){}
+  window.addEventListener('popstate',function(){
+    if(allowExit) return;
+    let hasItems=false; try{ hasItems=Array.isArray(CART) && CART.length>0; }catch(e){}
+    if(!hasItems){ allowExit=true; try{ history.back(); }catch(e){} return; }
+    try{ history.pushState({vtExitGuard:true},'',location.href); }catch(e){}
+    if(!dialogOpen) show('exit');
+  });
+
+  function checkReturnedFromWhatsApp(){
+    if(document.visibilityState!=='visible') return;
+    let pending=false;
+    try{ pending=sessionStorage.getItem('vt_order_waiting_confirmation')==='1'; }catch(e){}
+    if(pending && !dialogOpen) show('order');
+  }
+  document.addEventListener('visibilitychange',checkReturnedFromWhatsApp);
+  window.addEventListener('pageshow',function(){ setTimeout(checkReturnedFromWhatsApp,350); });
 })();
 </script>
 
