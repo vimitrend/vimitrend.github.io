@@ -2129,16 +2129,27 @@ async function getEffectiveDecorSlides(){
 <script>
 
 /* =====================================================================
-   ADMIN PANEL  (kholne ke liye: website link ke aakhir mein #admin lagayein,
-   ya logo par 5 baar jaldi-jaldi tap karein)
+   ADMIN PANEL (login only; public setup disabled; browser-side lockout enabled)
 ===================================================================== */
 (function(){
   const LS_KEY = 'vt_admin_hash', SALT = 'vimi-trend-admin-v1';
   const SA_KEY = 'vt_sa_hash', SA_SALT = 'vimi-trend-superadmin-v1';
   const EXP_KEY = 'vt_expiry'; // subscription expiry date (YYYY-MM-DD)
+  // Client-side deterrent only: browser storage can be cleared or modified.
+  const FAIL_KEY = 'vt_admin_login_failures_v1', LOCK_KEY = 'vt_admin_login_lock_until_v1';
+  const MAX_LOGIN_FAILURES = 5, LOCK_MINUTES = 15;
   const lsGet = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
   const lsSet = (k, v) => { try{ localStorage.setItem(k, v); return true; }catch(e){ return false; } };
   const lsDel = k => { try{ localStorage.removeItem(k); }catch(e){} };
+  function loginLockUntil(){ const n = parseInt(lsGet(LOCK_KEY)||'0',10); return Number.isFinite(n) ? n : 0; }
+  function loginIsLocked(){ return Date.now() < loginLockUntil(); }
+  function loginLockMessage(){ const mins = Math.max(1, Math.ceil((loginLockUntil()-Date.now())/60000)); return 'Bahut baar galat password dala gaya. Suraksha ke liye '+mins+' minute baad dobara koshish karein.'; }
+  function recordLoginFailure(){
+    let count = parseInt(lsGet(FAIL_KEY)||'0',10); if(!Number.isFinite(count)) count=0; count++;
+    if(count >= MAX_LOGIN_FAILURES){ lsSet(FAIL_KEY,'0'); lsSet(LOCK_KEY,String(Date.now()+LOCK_MINUTES*60000)); return true; }
+    lsSet(FAIL_KEY,String(count)); return false;
+  }
+  function clearLoginFailures(){ lsDel(FAIL_KEY); lsDel(LOCK_KEY); }
 
   async function hashPw(pw, salt){
     salt = salt || SALT;
@@ -2250,12 +2261,19 @@ async function getEffectiveDecorSlides(){
     } else if(hasAdmin){
       showAuth('login', false);
     } else {
-      // First time — set admin password
-      showAuth('set', false);
+      // No stored password: never expose first-time setup to public visitors.
+      root.innerHTML = `<div class="vt-box vt-narrow"><h2>Admin Locked</h2><p class="vt-sub">Is browser mein Admin password pehle se set nahi hai. Public page se password setup/reset allowed nahi hai.</p><button class="vt-btn" id="vtCancel">Band Karein</button></div>`;
+      $('vtCancel').onclick = close;
     }
   }
 
   function showAuth(mode, isSuperAdmin){
+    // Public first-time setup is intentionally disabled. Password provisioning
+    // must be done by the site owner through a trusted, private process.
+    if(mode === 'set'){
+      root.innerHTML = `<div class="vt-box vt-narrow"><h2>Admin Locked</h2><p class="vt-sub">Public page se Admin password banana ya reset karna allowed nahi hai.</p><button class="vt-btn" id="vtCancel">Band Karein</button></div>`;
+      $('vtCancel').onclick = close; return;
+    }
     const key = isSuperAdmin ? SA_KEY : LS_KEY;
     const salt = isSuperAdmin ? SA_SALT : SALT;
     const label = isSuperAdmin ? 'Super Admin' : 'Admin';
@@ -2278,16 +2296,21 @@ async function getEffectiveDecorSlides(){
     const go = async () => {
       const p1 = $('vtPw1').value;
       if(mode === 'login'){
+        if(loginIsLocked()) return setMsg(loginLockMessage());
         if(!p1) return setMsg('Password likhein.');
         const h = await hashPw(p1, salt);
         if(h === lsGet(key)){
+          clearLoginFailures();
           if(isSuperAdmin){ superUnlocked = true; showSuperPanel(); }
           else {
             // Check subscription
             if(isExpired()){ return setMsg('⛔ Subscription expire ho gayi. Apne service provider se contact karein.'); }
             unlocked = true; showPanel();
           }
-        } else { setMsg('Password galat hai.'); }
+        } else {
+          const locked = recordLoginFailure();
+          setMsg(locked ? loginLockMessage() : 'Password galat hai. Bache hue attempts: '+(MAX_LOGIN_FAILURES-parseInt(lsGet(FAIL_KEY)||'0',10))+'.');
+        }
       } else {
         const p2 = $('vtPw2').value;
         if(p1.length < 6) return setMsg('Kam se kam 6 akshar chahiye.');
@@ -2298,6 +2321,7 @@ async function getEffectiveDecorSlides(){
       }
     };
     $('vtGo').onclick = go;
+    if(mode === 'login' && loginIsLocked()) setMsg(loginLockMessage());
     root.querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => { if(e.key === 'Enter') go(); }));
     $('vtCancel').onclick = () => mode === 'change' ? (isSuperAdmin ? showSuperPanel() : showPanel()) : (lsGet(SA_KEY) || lsGet(LS_KEY) ? showLoginChoice() : close());
     $('vtPw1').focus();
@@ -2411,7 +2435,7 @@ async function getEffectiveDecorSlides(){
   }
 
   function showPanel(){
-    if(!unlocked) return showAuth(lsGet(LS_KEY) ? 'login' : 'set', false);
+    if(!unlocked) return showAuth('login', false);
     const exp = lsGet(EXP_KEY);
     const expWarn = exp ? `<div class="vt-note" style="background:#fff3cd;margin-bottom:8px">📅 Subscription: <b>${fmtDate(exp)}</b> tak valid hai.</div>` : '';
     root.innerHTML = `<div class="vt-box">
@@ -2794,7 +2818,7 @@ async function getEffectiveDecorSlides(){
   const hlList = () => (CURRENT_HL[ADM_TAB === 'decor' ? 'decor' : 'fashion'] || []);
   const hlSave = list => persistHL(Object.assign({}, CURRENT_HL, { [ADM_TAB === 'decor' ? 'decor' : 'fashion']: list }));
   function showHighlights(){
-    if(!unlocked) return showAuth(lsGet(LS_KEY) ? 'login' : 'set', false);
+    if(!unlocked) return showAuth('login', false);
     const nm = ADM_TAB === 'decor' ? 'Decor' : 'Fashion';
     root.innerHTML = `<div class="vt-box">
       <div class="vt-head"><h2>Highlights — ${nm}</h2><button class="vt-btn" id="hlBack">Wapas</button></div>
@@ -3046,7 +3070,7 @@ async function getEffectiveDecorSlides(){
     return st;
   }
   function showCloud(){
-    if(!unlocked) return showAuth(lsGet(LS_KEY) ? 'login' : 'set', false);
+    if(!unlocked) return showAuth('login', false);
     root.innerHTML = `<div class="vt-box">
       <div class="vt-head"><h2>ImageKit Cloud Storage</h2><button class="vt-btn" id="cdBack">Wapas</button></div>
       <div class="vt-note">Download Everything dabane par photos/videos ImageKit par upload hongi. Har file ke liye naya secure token liya jata hai; original photo quality ko compress nahi kiya jayega.</div>
@@ -3226,7 +3250,7 @@ async function getEffectiveDecorSlides(){
     trackSet(u); return true;
   }
   function showStats(){
-    if(!unlocked) return showAuth(lsGet(LS_KEY) ? 'login' : 'set', false);
+    if(!unlocked) return showAuth('login', false);
     let key = ''; try{ key = localStorage.getItem('vt_stats_key') || ''; }catch(e){}
     root.innerHTML = `<div class="vt-box">
       <div class="vt-head"><h2>WhatsApp Stats</h2><button class="vt-btn" id="stBack">Wapas</button></div>
@@ -3281,7 +3305,7 @@ async function getEffectiveDecorSlides(){
     load();
   }
   function showOffer(){
-    if(!unlocked) return showAuth(lsGet(LS_KEY) ? 'login' : 'set', false);
+    if(!unlocked) return showAuth('login', false);
     root.innerHTML = `<div class="vt-box">
       <div class="vt-head"><h2>Offer / Festival Poster</h2><button class="vt-btn" id="ofBack">Wapas</button></div>
       <div class="vt-note">Ye poster website ke sabse upar dikhta hai (Diwali, Holi, Sale jaise mauke ke liye). Customer poster par tap karega to WhatsApp khulega. Offer khatam hone par <b>Offer Hatayein</b> dabayein, poster turant hat jayega.</div>
@@ -3346,7 +3370,7 @@ async function getEffectiveDecorSlides(){
   async function pickImage(){ return (await pickImages(false))[0] || null; }
 
   function showSlides(){
-    if(!unlocked) return showAuth(lsGet(LS_KEY) ? 'login' : 'set', false);
+    if(!unlocked) return showAuth('login', false);
     root.innerHTML = `<div class="vt-box">
       <div class="vt-head"><h2>Slider Photos — ${ADM_TAB === 'decor' ? 'Decor' : 'Fashion'}</h2><button class="vt-btn" id="slBack">Wapas</button></div>
       <div class="vt-note">Ye wahi bade photos hain jo website par apne aap slide hote hain. <b>${ADM_TAB === 'decor' ? 'Ye sirf DECOR ke liye hain (customer Decor dabayega tab dikhenge).' : 'Ye sirf FASHION ke liye hain (customer Fashion dabayega tab dikhenge).'}</b> Aap photo badal sakte hain, nayi jod sakte hain, hata sakte hain ya order badal sakte hain. Nayi photo seedha poori dikhegi (crop nahi hogi).</div>
@@ -4092,13 +4116,8 @@ async function getEffectiveDecorSlides(){
   window.addEventListener('hashchange', checkHash);
   checkHash();
 
-  document.querySelectorAll('.logo-mark').forEach(logo => {
-    let n = 0, t;
-    logo.addEventListener('click', () => {
-      n++; clearTimeout(t); t = setTimeout(() => { n = 0; }, 1500);
-      if(n >= 5){ n = 0; open(); }
-    });
-  });
+  // Logo clicks never open admin. No click-count secret or password setup trigger.
+
 })();
 
 // ── WhatsApp PDF link handler ── runs OUTSIDE admin, works for any visitor
