@@ -1266,12 +1266,15 @@ const VT_SHORTLINK_API = 'https://vimi-trend-links.vimitrend.workers.dev';
 async function vtMakeShortOrderLink(items){
   try{
     const r = await fetch(VT_SHORTLINK_API + '/api/shorten', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST', mode:'cors', cache:'no-store',
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({items})
     });
-    if(!r.ok) throw new Error('Short link service unavailable');
+    if(!r.ok) throw new Error('Short link service returned HTTP ' + r.status);
     const d = await r.json();
-    if(d && (d.shortUrl || d.url)) return d.shortUrl || d.url;
+    const shortUrl = d && (d.shortUrl || d.url);
+    if(shortUrl && /^https:\/\/vimi-trend-links\.vimitrend\.workers\.dev\/o\/[a-f0-9]{18}$/i.test(shortUrl)) return shortUrl;
+    throw new Error('Worker did not return a valid short order link');
   }catch(e){ console.warn('VIMI short link fallback:', e); }
   const safe = await vtEncodeOrderHash(items);
   return window.location.origin + '/p.html#order=' + safe;
@@ -4175,8 +4178,8 @@ async function getEffectiveDecorSlides(){
   try{ history.pushState({vtExitGuard:true},'',location.href); }catch(e){}
   window.addEventListener('popstate',function(){
     if(allowExit) return;
-    let hasItems=false; try{ hasItems=Array.isArray(CART) && CART.length>0; }catch(e){}
-    if(!hasItems){ allowExit=true; try{ history.back(); }catch(e){} return; }
+    // Always ask before leaving, even when the cart is empty.
+    // Restore the guard entry so pressing No keeps the visitor on this page.
     try{ history.pushState({vtExitGuard:true},'',location.href); }catch(e){}
     if(!dialogOpen) show('exit');
   });
