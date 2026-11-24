@@ -2424,6 +2424,7 @@ async function getEffectiveDecorSlides(){
         <button class="vt-btn vt-primary" id="vtOffer">Offer Poster</button>
         <button class="vt-btn vt-primary" id="vtHL">Highlights</button>
         <button class="vt-btn" id="vtCdn">Cloud Storage</button>
+        <button class="vt-btn vt-primary" id="vtPublish">🚀 Save &amp; Publish</button>
         <button class="vt-btn vt-primary" id="vtZip">Download Website Zip</button>
         <button class="vt-btn" id="vtImp">Import</button>
         <button class="vt-btn vt-primary" id="vtXlsImp">📥 Excel se Import</button>
@@ -2434,7 +2435,7 @@ async function getEffectiveDecorSlides(){
         <button class="vt-btn vt-danger" id="vtReset">Local Reset</button>
       </div>
       <div class="vt-msg" id="vtMsg"></div>
-      <div class="vt-note">Yahan ke badlav pehle sirf is phone/browser mein dikhte hain. Sabhi customers ko dikhane ke liye: <b>Download Everything</b> dabayein, ZIP ko extract karke uske files GitHub repository mein upload karein. Isme Fashion, Decor, slider, Highlights, videos aur offer poster sab aa jata hai.</div>
+      <div class="vt-note">Badlav pehle is browser mein save hote hain. Sabhi customers ke liye live karne ke liye <b>Save &amp; Publish</b> dabayein: photos ImageKit par jayengi aur products.json GitHub par automatic update hoga. <b>Download Everything</b> backup ZIP ke liye rahega.</div>
       <div id="vtList"></div></div>`;
     $('vtClose').onclick = close;
     $('vtLogout').onclick = () => { unlocked = false; close(); };
@@ -2449,6 +2450,7 @@ async function getEffectiveDecorSlides(){
     $('vtHL').onclick = showHighlights;
     $('vtCdn').onclick = showCloud;
     $('vtCdn').textContent = 'ImageKit Storage ✓';
+    $('vtPublish').onclick = publishSite;
     $('vtZip').onclick = async () => {
       await downloadZip();
       let still = false; try{ still = !!localStorage.getItem('vt_dirty'); }catch(e){}
@@ -2458,7 +2460,7 @@ async function getEffectiveDecorSlides(){
     let dirty = false; try{ dirty = !!localStorage.getItem('vt_dirty'); }catch(e){}
     $('vtZip').textContent = dirty ? '⬇ Download Everything — naye badlav hain!' : '⬇ Download Everything (Website Zip)';
     if(dirty){ $('vtZip').style.background = '#128a4b'; $('vtZip').style.borderColor = '#128a4b'; }
-    const topRow = document.createElement('div'); topRow.className = 'vt-actions'; topRow.append($('vtZip'), $('vtImp'));
+    const topRow = document.createElement('div'); topRow.className = 'vt-actions'; topRow.append($('vtPublish'), $('vtZip'), $('vtImp'));
     $('tabF').parentNode.before(topRow);
     idbGet('snap').then(sn => {
       if(!sn || !sn.json) return;
@@ -3118,6 +3120,46 @@ async function getEffectiveDecorSlides(){
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 20000);
     return true;
   }
+  async function publishSite(){
+    const btn = $('vtPublish');
+    if(btn && btn.disabled) return;
+    const publishKey = prompt('Cloudflare Worker ka PUBLISH_KEY daalein. Ye key Cloudflare Secret mein set ki hogi:');
+    if(!publishKey) return;
+    if(publishKey.length < 20){ setMsg('Publish key sahi nahi lag rahi. Cloudflare PUBLISH_KEY check karein.'); return; }
+    if(btn){ btn.disabled = true; btn.textContent = '⏳ Publishing...'; }
+    try{
+      setMsg('Data check ho raha hai aur photos ImageKit par upload/reuse ho rahi hain...', true);
+      let newJson = snapJson();
+      const ex = await externalize(newJson, t => setMsg(t, true));
+      if(ex.fail){
+        setMsg('❌ ImageKit par ' + ex.fail + ' upload fail hui: ' + ex.err + '. Publish roka gaya; aapka local data safe hai. Dobara Save & Publish karein.');
+        return;
+      }
+      newJson = ex.json;
+      let parsed;
+      try{ parsed = JSON.parse(newJson); }catch(e){ throw new Error('products.json valid nahi hai; publish roka gaya.'); }
+      if(!parsed || !Array.isArray(parsed.products) || !Array.isArray(parsed.decor)) throw new Error('Product data structure check fail hua; publish roka gaya.');
+      if(newJson.length > 85 * 1024 * 1024) throw new Error('products.json 85 MB se badi hai. Publish nahi kiya.');
+      setMsg('GitHub par products.json publish ho rahi hai. Kripya tab band na karein...', true);
+      const publishWorker = 'https://vimi-trend-links.vimitrend.workers.dev';
+      const response = await fetch(publishWorker + '/api/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Vimi-Publish-Key': publishKey },
+        body: JSON.stringify({ content: newJson }),
+        cache: 'no-store'
+      });
+      let result = {}; try{ result = await response.json(); }catch(e){}
+      if(!response.ok || !result.ok) throw new Error(result.error || ('Worker/GitHub error HTTP ' + response.status));
+      try{ localStorage.removeItem('vt_dirty'); await idbDel('snap'); }catch(e){}
+      const hl = parsed.highlights || {};
+      setMsg('✅ Publish successful! GitHub par products.json update ho gayi. Fashion: ' + (parsed.products || []).length + ', Decor: ' + (parsed.decor || []).length + ', Slider: ' + ((parsed.slides || []).length + (parsed.decorSlides || []).length) + ', Highlights: ' + ((hl.fashion || []).length + (hl.decor || []).length) + '. ImageKit: ' + ex.up + ' nayi + ' + ex.reused + ' reused. Website live hone mein thoda waqt lag sakta hai. ' + (result.commit ? 'Commit: ' + result.commit.slice(0, 7) : ''), true);
+    }catch(e){
+      setMsg('❌ Publish nahi hua: ' + (e && e.message ? e.message : 'Unknown error') + '. Aapka local data safe hai; Download Everything se backup bhi le sakte hain.');
+    }finally{
+      if(btn){ btn.disabled = false; btn.textContent = '🚀 Save & Publish'; }
+    }
+  }
+
   async function downloadZip(){
     setMsg('Zip ban rahi hai, thoda ruko...', true);
     try{
