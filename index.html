@@ -3766,7 +3766,7 @@ async function getEffectiveDecorSlides(){
         const qty=parseInt(o.qty)||1;
         groups[key].it.push([ci, sz, qty]);
       });
-      const orderData=rows.map(o=>({n:o.product||'',p:parseInt(o.amount)||0,pk:1,ci:Math.max(0,(allP.find(p=>p.naam===o.product)?getColors(allP.find(p=>p.naam===o.product)).findIndex(c=>c.name===o.colour):0)),c:o.colour||'',s:o.size||'',q:parseInt(o.qty)||1,cu:o.customer||''}));
+      const orderData=rows.map(o=>{ const _q=parseInt(o.qty)||1; const _amt=parseInt(o.amount)||0; return {n:o.product||'',p:Math.round(_amt/_q*100)/100,pk:1,ci:Math.max(0,(allP.find(p=>p.naam===o.product)?getColors(allP.find(p=>p.naam===o.product)).findIndex(c=>c.name===o.colour):0)),c:o.colour||'',s:o.size||'',q:_q,cu:o.customer||''}; });
       return await vtMakeShortOrderLink(orderData);
     }catch(e){ return null; }
   }
