@@ -2974,12 +2974,17 @@ async function getEffectiveDecorSlides(){
   function hstr(t){ let h = 2166136261 >>> 0; for(let i = 0; i < t.length; i++){ h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return t.length + ':' + h; }
   async function imagekitAuth(){
     // IMPORTANT: ImageKit tokens are single-use. Never cache or reuse this response.
-    const r = await fetch(IMAGEKIT_WORKER + '/auth', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:'{}',
-      cache:'no-store'
-    });
+    const _ac = new AbortController(), _t = setTimeout(() => _ac.abort(), 20000);
+    let r;
+    try{
+      r = await fetch(IMAGEKIT_WORKER + '/auth', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:'{}',
+        cache:'no-store',
+        signal:_ac.signal
+      });
+    } finally { clearTimeout(_t); }
     let a={}; try{ a=await r.json(); }catch(e){}
     if(!r.ok || !a.token || !a.signature || !a.expire || !a.publicKey){
       throw new Error(a.error || ('ImageKit auth HTTP ' + r.status));
@@ -3013,7 +3018,7 @@ async function getEffectiveDecorSlides(){
     let blob=await asBlob(file);
     if(kind==='image') blob=await compressUploadImage(blob);
     let lastError;
-    for(let attempt=0; attempt<3; attempt++){
+    for(let attempt=0; attempt<4; attempt++){
       try{
         // ImageKit token is single-use: fetch fresh auth and rebuild payload for every retry.
         const auth=await imagekitAuth();
@@ -3023,11 +3028,12 @@ async function getEffectiveDecorSlides(){
         const fd=new FormData(); fd.append('file',blob,fileName); fd.append('fileName',fileName);
         fd.append('publicKey',IMAGEKIT_PUBLIC_KEY); fd.append('signature',auth.signature);
         fd.append('expire',String(auth.expire)); fd.append('token',auth.token); fd.append('useUniqueFileName','true');
-        const r=await fetch('https://upload.imagekit.io/api/v1/files/upload',{method:'POST',body:fd});
+        const _uc=new AbortController(), _ut=setTimeout(()=>_uc.abort(), 90000);
+        let r; try{ r=await fetch('https://upload.imagekit.io/api/v1/files/upload',{method:'POST',body:fd,signal:_uc.signal}); } finally { clearTimeout(_ut); }
         let j={}; try{j=await r.json();}catch(e){}
         if(!r.ok || !j.url) throw new Error((j.message||j.help||'ImageKit upload failed')+' (HTTP '+r.status+')');
         return j.url;
-      }catch(e){ lastError=e; if(attempt<2) await new Promise(resolve=>setTimeout(resolve,500*(attempt+1))); }
+      }catch(e){ lastError=e; if(attempt<3) await new Promise(resolve=>setTimeout(resolve,700*(attempt+1))); }
     }
     throw lastError || new Error('ImageKit upload failed');
   }
@@ -3047,12 +3053,12 @@ async function getEffectiveDecorSlides(){
     if(j.offer && j.offer.video && !/^https?:/i.test(j.offer.video)) vids.push(j.offer);
     const total = imgs.length + vids.length; let done = 0;
     const tick = () => { done++; say('Fast Upload ImageKit: ' + done + '/' + total + ' (photo ' + imgs.length + ', video ' + vids.length + ')...'); };
-    await pool(imgs, 25, async ([o, k]) => {
+    await pool(imgs, 4, async ([o, k]) => {
       const src = o[k], key = 'i:' + hstr(src); let u = map[key];
       if(u) st.reused++; else { try{ u = await cdnUpload('image', src); map[key] = u; st.up++; }catch(e){ st.fail++; st.err = e.message; } }
       if(u) o[k] = u; tick();
       // Persist in batches to reduce IndexedDB contention during large upload runs.
-      if(done % 10 === 0 || done === total){ try{ await idbPut('imagekitmap', map); }catch(e){} }
+      if(done % 3 === 0 || done === total){ try{ await idbPut('imagekitmap', map); }catch(e){} }
     });
     await pool(vids, 1, async x => {
       const key = 'v:' + x.video; let u = map[key];
