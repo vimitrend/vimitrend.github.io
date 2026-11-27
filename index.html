@@ -2175,7 +2175,8 @@ async function getEffectiveDecorSlides(){
   #vtAdmin .vt-strip{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
   #vtAdmin .vt-th{position:relative;width:96px}
   #vtAdmin .vt-th input[type=text]{font-size:12px;padding:6px;margin:4px 0 0;border-radius:6px}
-  #vtAdmin .vt-th img{width:96px;height:124px;object-fit:cover;border-radius:8px;background:#f1ebdd;display:block;border:2px solid transparent;cursor:zoom-in}
+  #vtAdmin .vt-th img{width:96px;height:124px;object-fit:cover;border-radius:8px;background:#f1ebdd;display:block;border:2px solid transparent;cursor:pointer}
+  #vtAdmin .vt-th.selected img{border:3px solid #128a4b;box-shadow:0 0 0 2px #128a4b; }
   #vt-photo-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:999999;flex-direction:column;align-items:center;justify-content:center;padding:16px}
   #vt-photo-ov.on{display:flex}
   #vt-photo-ov img{max-width:96vw;max-height:78vh;object-fit:contain;border-radius:10px;box-shadow:0 4px 32px rgba(0,0,0,.6)}
@@ -2558,7 +2559,7 @@ async function getEffectiveDecorSlides(){
       <select id="fCat"><option value="">Auto (naam se pehchane, jaise "3 Piece Set")</option><option>1 Piece</option><option>2 Piece</option><option>3 Piece</option>${(()=>{const extra=JSON.parse(localStorage.getItem('vt_extra_cats')||'[]');return extra.map(c=>`<option>${c}</option>`).join('');})()}<option value="__custom__">+ Naya Category likhein...</option></select>
       <input type="text" id="fCatCustom" placeholder="Category naam likhein (jaise: Ghaghra, Kurti...)" style="display:none;margin-top:6px;width:100%;padding:10px;border:1px solid #cfc7b8;border-radius:8px;font-family:inherit;font-size:.9rem">
       <label>Colour wali photos (ek saath kai chun sakte hain)</label><input type="file" id="fFile" accept="image/*" multiple>
-      <div class="vt-hint"><b>Har photo ka ek colour hota hai.</b> Photo ke neeche colour ka naam likhein (jaise Red, Mustard Yellow). Customer ko wahi naam dikhega aur WhatsApp order mein jayega. Pehli photo (sunehri border wali) card par dikhegi; "Main" dabakar koi bhi photo pehli bana sakte hain.</div>
+      <div class="vt-hint"><b>Photo par click karke select karein.</b> Selected photo ke size, rate, packing aur stock upar isi box mein edit karein. Colour naam bhi neeche likhein. Main photo ke liye Main dabayein.</div>
       <div class="vt-strip" id="fStrip"></div>
       <label>Ya photo ka link (optional)</label><input type="text" id="fUrl" placeholder="https://..."><button class="vt-btn" id="fUrlAdd" type="button">+ Link wali photo jodein</button>
       <div class="vt-msg" id="vtMsg"></div>
@@ -2583,39 +2584,46 @@ async function getEffectiveDecorSlides(){
     $('fSzAdd').onclick = () => { const rows = szBox.querySelectorAll('.vt-szrow'), last = rows[rows.length - 1]; const r = addSzRow('', last ? last.querySelector('.szr').value : '', ''); r.querySelector('.szn').focus(); };
     const names0 = (p && p.colorNames) || [];
     let imgs = p ? [p.photo].concat(p.gallery || []).filter(Boolean).map((src, k) => ({ src, name: (names0[k] || '') + '', sizes: (p.variantSizes && p.variantSizes[k]) || null })) : [];
+    let selectedImg = 0;
+    const readSzRows = () => {
+      const out=[]; let bad='';
+      szBox.querySelectorAll('.vt-szrow').forEach(r=>{
+        const label=r.querySelector('.szn').value.trim(), rate=parseInt((r.querySelector('.szr').value||'').replace(/\D/g,''),10);
+        if(!label&&!rate)return;
+        if(!label||!rate){bad='Size aur rate dono bharna zaroori hai.';return;}
+        const pk=parseInt((r.querySelector('.szp').value||'').replace(/\D/g,''),10), qty=parseInt((r.querySelector('.szq').value||'').replace(/\D/g,''),10);
+        const z={label,price:rate}; if(pk>1)z.pack=pk;if(qty>0)z.qty=qty;out.push(z);
+      }); return bad?{bad,out:[]}:{out};
+    };
+    const storeSelectedSizes=()=>{ if(imgs[selectedImg]){const v=readSzRows();if(!v.bad)imgs[selectedImg].sizes=v.out; } };
+    const loadSizesFor=(i)=>{
+      storeSelectedSizes(); selectedImg=i; szBox.textContent='';
+      const list=(imgs[i]&&imgs[i].sizes)||(p&&p.sizes? p.sizes.map(z=>({label:z.label,price:z.price,pack:szPack(p,z)>1?szPack(p,z):undefined,qty:z.qty||0})):[]);
+      if(list.length)list.forEach(z=>addSzRow(z.label,z.price,z.pack||'',z.qty||''));else addSzRow('','','','');
+      drawStrip();
+    };
     const drawStrip = () => {
       const s = $('fStrip'); s.textContent = '';
       imgs.forEach((it, i) => {
-        const w = document.createElement('div'); w.className = 'vt-th' + (i === 0 ? ' main' : '');
-        const im = document.createElement('img'); im.src = it.src; im.alt = '';
-        im.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); document.getElementById('vt-photo-ov-img').src = it.src; document.getElementById('vt-photo-ov').classList.add('on'); });
-        im.addEventListener('click', e => { e.stopPropagation(); document.getElementById('vt-photo-ov-img').src = it.src; document.getElementById('vt-photo-ov').classList.add('on'); });
+        const w = document.createElement('div'); w.className = 'vt-th' + (i === 0 ? ' main' : '') + (i===selectedImg?' selected':'');
+        const im = document.createElement('img'); im.src = it.src; im.alt = ''; im.title='Click karke size/stock edit karein';
+        im.addEventListener('click', e => {e.preventDefault();e.stopPropagation();loadSizesFor(i);});
         const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '×';
-        x.onclick = () => { imgs.splice(i, 1); drawStrip(); };
+        x.onclick = () => { storeSelectedSizes(); imgs.splice(i, 1); selectedImg=Math.max(0,Math.min(selectedImg,imgs.length-1)); drawStrip(); if(imgs[selectedImg])loadSizesFor(selectedImg);else{szBox.textContent='';addSzRow('','','','');} };
         const mk = document.createElement('button'); mk.type = 'button'; mk.className = 'mk'; mk.textContent = i === 0 ? 'Main ✓' : 'Main';
-        mk.onclick = () => { imgs.unshift(imgs.splice(i, 1)[0]); drawStrip(); };
+        mk.onclick = () => { storeSelectedSizes(); const picked=imgs[i];imgs.splice(i,1);imgs.unshift(picked);selectedImg=0;drawStrip();loadSizesFor(0); };
         const nm = document.createElement('input'); nm.type = 'text'; nm.placeholder = 'Colour naam'; nm.value = it.name;
         nm.oninput = () => { it.name = nm.value; };
-        const vd=document.createElement('button'); vd.type='button'; vd.className='mk'; vd.textContent='Size/Stock Details';
-        vd.style.cssText='display:block;width:100%;margin-top:5px;border:1px solid #bd9450;border-radius:7px;padding:7px;background:#fff;font:inherit;font-size:.78rem;color:#6b4f1d';
-        vd.onclick=()=>{
-          const current=it.sizes || (p && p.sizes ? p.sizes.map(z=>({label:z.label,price:z.price,pack:szPack(p,z)>1?szPack(p,z):undefined,qty:z.qty||0})) : []);
-          const raw=current.map(z=>[z.label,z.price,z.pack||'',z.qty||''].join(',')).join('\n');
-          const val=prompt('Har photo ke size alag likhein (har line: Size,Rate,Packing,Stock\nExample: M,420,,5)',raw);
-          if(val===null)return;
-          const parsed=[]; val.split(/\n/).forEach(line=>{const a=line.split(',').map(v=>v.trim());if(a[0]&&a[1]){const o={label:a[0],price:Number(a[1])};if(Number(a[2])>1)o.pack=Number(a[2]);if(Number(a[3])>0)o.qty=Number(a[3]);parsed.push(o);}});
-          it.sizes=parsed; toast('Photo ke size/stock details set ho gaye');
-        };
-        w.append(im, x, mk, nm, vd); s.appendChild(w);
+        w.append(im, x, mk, nm); s.appendChild(w);
       });
     };
-    drawStrip();
+    drawStrip(); if(imgs.length) loadSizesFor(0);
     $('fFile').onchange = async () => {
       const files = Array.from($('fFile').files); if(!files.length) return;
       setMsg('Photos aa rahi hain...', true);
       let bad = 0;
       for(const f of files){
-        try{ imgs.push({ src: await fileToDataURL(f, 2400, 1.0), name: '' }); drawStrip(); }catch(e){ bad++; }
+        try{ imgs.push({ src: await fileToDataURL(f, 2400, 1.0), name: '' }); loadSizesFor(imgs.length-1); }catch(e){ bad++; }
       }
       $('fFile').value = '';
       setMsg(bad ? bad + ' photo padh nahi paaye.' : '');
@@ -2623,7 +2631,7 @@ async function getEffectiveDecorSlides(){
     $('fUrlAdd').onclick = () => {
       const u = $('fUrl').value.trim();
       if(!/^https?:\/\//.test(u)) return setMsg('Sahi link likhein (https:// se shuru).');
-      imgs.push({ src: u, name: '' }); $('fUrl').value = ''; setMsg(''); drawStrip();
+      imgs.push({ src: u, name: '' }); $('fUrl').value = ''; setMsg(''); loadSizesFor(imgs.length-1);
     };
     // Custom category handler
     $('fCat').onchange = () => {
@@ -2654,6 +2662,7 @@ async function getEffectiveDecorSlides(){
     $('fSave').onclick = async () => {
       const naam = $('fName').value.trim();
       if(!naam) return setMsg('Product ka naam likhein.');
+      storeSelectedSizes();
       const sizes = []; let bad = '';
       szBox.querySelectorAll('.vt-szrow').forEach(r => {
         const label = r.querySelector('.szn').value.trim(), rate = parseInt(r.querySelector('.szr').value.replace(/\D/g, ''), 10);
