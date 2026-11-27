@@ -1682,11 +1682,15 @@ function renderProducts(list){
   CATS = ['1 Piece', '2 Piece', '3 Piece'].concat(dynCats);
   const bar = document.getElementById('catBar');
   const present = CATS.filter(c => list.some(p => getCategory(p) === c));
-  if(!present.includes(ACTIVE_CAT)) ACTIVE_CAT = present[0] || '';
+  if(ACTIVE_CAT && !present.includes(ACTIVE_CAT)) ACTIVE_CAT = '';
   bar.textContent = '';
   const prevActiveKey = ACTIVE_CAT;
-  if(present.length){
+  if(list.length){
     bar.hidden = false;
+    const allBtn=document.createElement('button'); allBtn.type='button'; allBtn.className='cat-chip'+(!ACTIVE_CAT?' on':'');
+    allBtn.append('All'); const allCount=document.createElement('small'); allCount.textContent='('+list.length+')'; allBtn.appendChild(allCount);
+    allBtn.onclick=()=>{ ACTIVE_CAT=''; renderProducts(list); };
+    bar.appendChild(allBtn);
     present.forEach(c => {
       const b = document.createElement('button'); b.type='button'; b.className='cat-chip'+(ACTIVE_CAT===c?' on':'');
       b.append(c); const sm=document.createElement('small'); sm.textContent='('+list.filter(p=>getCategory(p)===c).length+')'; b.appendChild(sm);
@@ -2406,6 +2410,7 @@ async function getEffectiveDecorSlides(){
       <div class="vt-actions"><button class="vt-btn ${ADM_TAB === 'fashion' ? 'vt-primary' : ''}" id="tabF">Fashion (${CURRENT_PRODUCTS.length})</button><button class="vt-btn ${ADM_TAB === 'decor' ? 'vt-primary' : ''}" id="tabD">Decor (${CURRENT_DECOR.length})</button></div>
       <div class="vt-actions">
         <button class="vt-btn vt-primary" id="vtAdd">+ Naya Product</button>
+        <button class="vt-btn" id="vtManageNames">📝 Category / Product Name Manage</button>
         <button class="vt-btn vt-primary" id="vtSlides">Slider Photos</button>
         <button class="vt-btn vt-primary" id="vtOffer">Offer Poster</button>
         <button class="vt-btn vt-primary" id="vtHL">Highlights</button>
@@ -2429,6 +2434,7 @@ async function getEffectiveDecorSlides(){
     $('tabD').onclick = () => { ADM_TAB = 'decor'; showPanel(); };
     $('vtAdd').textContent = ADM_TAB === 'decor' ? '+ Naya Decor Product' : '+ Naya Fashion Product';
     $('vtAdd').onclick = () => ADM_TAB === 'decor' ? showDecorForm(-1) : showForm(-1);
+    $('vtManageNames').onclick = showNameManager;
     $('vtSlides').onclick = showSlides;
     $('vtSlides').textContent = ADM_TAB === 'decor' ? 'Slider Photos (Decor)' : 'Slider Photos (Fashion)';
     $('vtOffer').onclick = showOffer;
@@ -2473,6 +2479,30 @@ async function getEffectiveDecorSlides(){
       CURRENT_OFFER = await getEffectiveOffer(); renderOffer(CURRENT_OFFER);
     };
     renderList();
+  }
+
+  function showNameManager(){
+    const customCats=()=>{try{return JSON.parse(localStorage.getItem('vt_extra_cats')||'[]')}catch(e){return []}};
+    const cats=[...new Set(['1 Piece','2 Piece','3 Piece',...customCats(),...CURRENT_PRODUCTS.map(p=>p.category).filter(Boolean)])];
+    root.innerHTML=`<div class="vt-box"><div class="vt-head"><h2>Category aur Product Name Manage</h2><button class="vt-btn" id="nmBack">← Admin</button></div>
+      <div style="padding:12px;border:1px solid #d9d0bf;border-radius:10px;margin-bottom:14px"><b>Category List</b><div id="nmCats"></div><div class="vt-hint">Category naam edit ya delete karne par Fashion products ki category update hogi.</div></div>
+      <div style="padding:12px;border:1px solid #d9d0bf;border-radius:10px"><b>Product Name List (Fashion)</b><div id="nmProducts"></div></div></div>`;
+    $('nmBack').onclick=showPanel;
+    const catBox=$('nmCats');
+    cats.forEach((c)=>{
+      const row=document.createElement('div');row.style.cssText='display:flex;gap:6px;align-items:center;margin:8px 0;flex-wrap:wrap';
+      const input=document.createElement('input');input.value=c;input.style.cssText='flex:1;min-width:120px;padding:9px;border:1px solid #d9d0bf;border-radius:8px';
+      const save=mkBtn('Rename',async()=>{const nv=input.value.trim();if(!nv||nv===c)return; if(cats.includes(nv)){alert('Ye category pehle se hai.');return;} const arr=customCats().filter(x=>x!==c); if(!['1 Piece','2 Piece','3 Piece'].includes(nv)&&!arr.includes(nv))arr.push(nv);localStorage.setItem('vt_extra_cats',JSON.stringify(arr)); const updated=CURRENT_PRODUCTS.map(p=>p.category===c?{...p,category:nv}:p); if(await persist(updated)){ACTIVE_CAT='';showNameManager();}});
+      const delb=mkBtn('Delete',async()=>{if(!confirm('Category '+c+' delete karein? Is category ke products ko Auto category par set kiya jayega.'))return; const arr=customCats().filter(x=>x!==c);localStorage.setItem('vt_extra_cats',JSON.stringify(arr));const updated=CURRENT_PRODUCTS.map(p=>p.category===c?{...p,category:null}:p);if(await persist(updated)){ACTIVE_CAT='';showNameManager();}},'vt-danger');
+      row.append(input,save,delb);catBox.appendChild(row);
+    });
+    const prodBox=$('nmProducts');
+    CURRENT_PRODUCTS.forEach((p,i)=>{const row=document.createElement('div');row.style.cssText='display:flex;gap:6px;align-items:center;margin:8px 0;flex-wrap:wrap';
+      const input=document.createElement('input');input.value=p.naam;input.style.cssText='flex:1;min-width:160px;padding:9px;border:1px solid #d9d0bf;border-radius:8px';
+      const save=mkBtn('Rename',async()=>{const nv=input.value.trim();if(!nv||nv===p.naam)return;if(CURRENT_PRODUCTS.some((x,k)=>k!==i&&x.naam===nv)){alert('Is naam ka product pehle se hai.');return;}const updated=CURRENT_PRODUCTS.slice();updated[i]={...p,naam:nv};if(await persist(updated)){showNameManager();}});
+      const delb=mkBtn('Delete',async()=>{if(!confirm('Product delete karein?\n'+p.naam))return;const updated=CURRENT_PRODUCTS.slice();updated.splice(i,1);if(await persist(updated)){showNameManager();}},'vt-danger');
+      row.append(input,save,delb);prodBox.appendChild(row);
+    });
   }
 
   function mkBtn(label, fn, cls){
