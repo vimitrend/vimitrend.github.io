@@ -2205,6 +2205,23 @@ async function getEffectiveDecorSlides(){
     m.textContent = t || ''; m.className = 'vt-msg' + (ok ? ' ok' : '');
   }
 
+  // Persistent login throttling: 5 failed attempts trigger a 15-minute lock.
+  const VT_LOCK_MS = 15 * 60 * 1000, VT_MAX_FAILS = 5;
+  function lockKey(isSA){ return 'vt_login_lock_' + (isSA ? 'super' : 'admin'); }
+  function readLoginLock(isSA){ try{ return JSON.parse(localStorage.getItem(lockKey(isSA)) || '{}'); }catch(e){ return {}; } }
+  function loginLockedUntil(isSA){ const d=readLoginLock(isSA); return Number(d.until||0); }
+  function loginLockRemaining(isSA){ return Math.max(0, loginLockedUntil(isSA)-Date.now()); }
+  function recordLoginFailure(isSA){
+    const d=readLoginLock(isSA); const now=Date.now();
+    if(Number(d.until||0)>now) return d;
+    const fails=Number(d.fails||0)+1;
+    const next={fails,until:fails>=VT_MAX_FAILS?now+VT_LOCK_MS:0};
+    try{localStorage.setItem(lockKey(isSA),JSON.stringify(next));}catch(e){}
+    return next;
+  }
+  function clearLoginFailures(isSA){ try{localStorage.removeItem(lockKey(isSA));}catch(e){} }
+  function lockText(ms){ const m=Math.ceil(ms/60000); return '⛔ 5 baar galat password. Login 15 minute lock hai. '+m+' minute baad try karein.'; }
+
   function open(){
     root.hidden = false; document.body.style.overflow = 'hidden';
     if(superUnlocked){ showSuperPanel(); return; }
@@ -2256,8 +2273,9 @@ async function getEffectiveDecorSlides(){
       change: 'Naya password likhein.'
     };
     const needConfirm = mode !== 'login';
+    const loginNotice = mode==='login' && loginLockRemaining(isSuperAdmin)>0 ? `<p style="color:#b3423a;font-weight:700">${lockText(loginLockRemaining(isSuperAdmin))}</p>` : '';
     root.innerHTML = `<div class="vt-box vt-narrow">
-      <h2>${titles[mode]}</h2><p class="vt-sub">${subs[mode]}</p>
+      <h2>${titles[mode]}</h2><p class="vt-sub">${subs[mode]}</p>${loginNotice}
       <input type="password" id="vtPw1" placeholder="Password" autocomplete="${needConfirm ? 'new-password' : 'current-password'}">
       ${needConfirm ? '<input type="password" id="vtPw2" placeholder="Password dobara likhein" autocomplete="new-password">' : ''}
       <div class="vt-msg" id="vtMsg"></div>
@@ -2269,15 +2287,22 @@ async function getEffectiveDecorSlides(){
       const p1 = $('vtPw1').value;
       if(mode === 'login'){
         if(!p1) return setMsg('Password likhein.');
+        const remaining=loginLockRemaining(isSuperAdmin);
+        if(remaining>0) return setMsg(lockText(remaining));
         const h = await hashPw(p1, salt);
         if(h === lsGet(key)){
+          clearLoginFailures(isSuperAdmin);
           if(isSuperAdmin){ superUnlocked = true; showSuperPanel(); }
           else {
             // Check subscription
             if(isExpired()){ return setMsg('⛔ Subscription expire ho gayi. Apne service provider se contact karein.'); }
             unlocked = true; showPanel();
           }
-        } else { setMsg('Password galat hai.'); }
+        } else {
+          const fail=recordLoginFailure(isSuperAdmin);
+          if(Number(fail.until||0)>Date.now()) setMsg(lockText(VT_LOCK_MS));
+          else setMsg('Password galat hai. '+fail.fails+'/'+VT_MAX_FAILS+' attempt.');
+        }
       } else {
         const p2 = $('vtPw2').value;
         if(p1.length < 6) return setMsg('Kam se kam 6 akshar chahiye.');
@@ -2584,7 +2609,7 @@ async function getEffectiveDecorSlides(){
       <div id="fSzRows"></div>
       <button class="vt-btn" id="fSzAdd" type="button">+ Size Add Karein</button>
       <div class="vt-hint">Har size ke aage uska rate likhein. Naya size chahiye to "+ Size Add Karein" dabayein, neeche naya box aa jayega.</div>
-      <div class="vt-hint"><b>Packing (optional):</b> har size ke Size aur Rate ke beech me packing ka box hai. Khali chhodenge to wo size piece ke hisaab se bikega. 4 likhenge to customer us size ko "pack" me chunega aur amount apne aap (pack × 4 piece × rate) banega. Rate hamesha 1 piece ka likhein.</div>
+      <div class="vt-hint"><b>Packing (optional):</b> har size ke Size aur Rate ke beech me packing ka box hai. Khali chhodenge to wo size piece ke hisaab se bikega. Packing 3, 4 ya koi bhi number likhenge to customer Qty pack mein chunega aur amount (Qty × Packing × 1 piece rate) banega; pieces bhi Qty × Packing se calculate honge. Rate hamesha 1 piece ka likhein.</div>
       <label>Category (customer isse filter karega)</label>
       <select id="fCat"><option value="">Auto (naam se pehchane, jaise "3 Piece Set")</option><option>1 Piece</option><option>2 Piece</option><option>3 Piece</option>${(()=>{const extra=JSON.parse(localStorage.getItem('vt_extra_cats')||'[]');return extra.map(c=>`<option>${c}</option>`).join('');})()}<option value="__custom__">+ Naya Category likhein...</option></select>
       <input type="text" id="fCatCustom" placeholder="Category naam likhein (jaise: Ghaghra, Kurti...)" style="display:none;margin-top:6px;width:100%;padding:10px;border:1px solid #cfc7b8;border-radius:8px;font-family:inherit;font-size:.9rem">
