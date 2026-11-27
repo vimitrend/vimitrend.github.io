@@ -1481,10 +1481,10 @@ function pickDraw(){
     const m = document.createElement('button'); m.type = 'button'; m.textContent = '−'; m.setAttribute('aria-label', s.label + ' decrease');
     const qn = document.createElement('b'); qn.textContent = n;
     const pl = document.createElement('button'); pl.type = 'button'; pl.textContent = '+'; pl.setAttribute('aria-label', s.label + ' badhayein');
-    const maxQ = (s.qty && parseInt(s.qty) > 0) ? parseInt(s.qty) : 999; // Admin mein qty set hai to wahi max
+    const packUnits = isD ? 1 : Math.max(1, szPack(p, s)); const stockPieces = (s.qty !== undefined && s.qty !== null && String(s.qty).trim() !== '' && Number(s.qty) >= 0) ? Number(s.qty) : null; const maxQ = (stockPieces !== null) ? Math.floor(stockPieces / packUnits) : 999; // Qty stock pieces mein hai; customer pack choose karega
     m.onclick = () => { if((qs[k] || 0) > 0){ qs[k]--; pickDraw(); } };
-    pl.onclick = () => { const cur = qs[k] || 0; if(cur >= maxQ){ showToast('Sirf ' + maxQ + ' available hai is size mein'); return; } qs[k] = cur + 1; pickDraw(); };
-    if((qs[k]||0) >= maxQ && maxQ < 999){ pl.disabled = true; pl.style.opacity = '.4'; }
+    pl.onclick = () => { const cur = qs[k] || 0; if(cur >= maxQ){ showToast('Stock sirf ' + (stockPieces===null ? maxQ : stockPieces) + ' pcs (' + maxQ + ' pack) available hai'); return; } qs[k] = cur + 1; pickDraw(); };
+    if(maxQ <= 0 || (qs[k]||0) >= maxQ){ pl.disabled = true; pl.style.opacity = '.4'; } if(stockPieces !== null && maxQ <= 0){ const stockHint=document.createElement('div'); stockHint.className='sp'; stockHint.textContent='Stock: '+stockPieces+' pcs — is packing ka poora pack available nahi'; stockHint.style.color='#b3423a'; lf.appendChild(stockHint); }
     q.append(m, qn, pl); row.append(lf, q); box.appendChild(row);
   });
 
