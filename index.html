@@ -1816,7 +1816,20 @@ function makeCard(p, i){
     `;
 
     if(p.photo){
-      card.querySelector('.photo').addEventListener('click', () => {
+      const photoEl = card.querySelector('.photo');
+      let _lbPending = false;
+      photoEl.addEventListener('touchend', e => {
+        // Swipe nahi, sirf tap
+        if(e.changedTouches && Math.abs(e.changedTouches[0].clientX - (photoEl._tx||e.changedTouches[0].clientX)) > 10) return;
+        e.preventDefault();
+        if(_lbPending) return; _lbPending = true;
+        setTimeout(() => { _lbPending = false; }, 600);
+        const startCI = (PK && PK.p === p) ? (PK.ci || 0) : 0;
+        openLightbox(cols.map(cc => cc.photo), p.naam, startCI, { labels: cols.map(cc => cc.name), onOrder: k => openPicker(p, k) });
+      }, { passive: false });
+      photoEl.addEventListener('touchstart', e => { photoEl._tx = e.touches[0].clientX; }, { passive: true });
+      photoEl.addEventListener('click', e => {
+        if(_lbPending) return;
         const startCI = (PK && PK.p === p) ? (PK.ci || 0) : 0;
         openLightbox(cols.map(cc => cc.photo), p.naam, startCI, { labels: cols.map(cc => cc.name), onOrder: k => openPicker(p, k) });
       });
@@ -2689,6 +2702,37 @@ async function getEffectiveDecorSlides(){
     const names0 = (p && p.colorNames) || [];
     const stocks0 = (p && p.colorStocks) || [];
     let imgs = p ? [p.photo].concat(p.gallery || []).filter(Boolean).map((src, k) => ({ src, name: (names0[k] || '') + '', stock: stocks0[k] != null ? stocks0[k] : null })) : [];
+    // Stock list section — thumbnails ke neeche ek alag list
+    let stkListEl = document.getElementById('fStockList');
+    if(!stkListEl){
+      stkListEl = document.createElement('div'); stkListEl.id = 'fStockList';
+      stkListEl.style.cssText = 'margin-top:10px;';
+    }
+    const drawStockList = () => {
+      stkListEl.textContent = '';
+      if(!imgs.length) return;
+      const hd = document.createElement('div');
+      hd.textContent = 'Stock (packs) — har image ka alag stock:';
+      hd.style.cssText = 'font-size:.8rem;font-weight:600;color:#7a7062;margin-bottom:6px;';
+      stkListEl.appendChild(hd);
+      imgs.forEach((it, i) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;background:#f9f5f0;padding:7px 10px;border-radius:8px;border:1px solid #e8dece;';
+        const thumb = document.createElement('img');
+        thumb.src = it.src; thumb.alt = '';
+        thumb.style.cssText = 'width:36px;height:36px;object-fit:cover;border-radius:4px;flex-shrink:0;';
+        const lbl = document.createElement('span');
+        lbl.textContent = it.name || ('Image ' + (i + 1));
+        lbl.style.cssText = 'flex:1;font-size:.82rem;color:#3a342c;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+        const inp = document.createElement('input');
+        inp.type = 'number'; inp.min = '0'; inp.placeholder = 'Pack qty';
+        inp.value = it.stock != null ? it.stock : '';
+        inp.style.cssText = 'width:80px;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font:inherit;font-size:.85rem;text-align:center;';
+        inp.oninput = () => { it.stock = inp.value === '' ? null : parseInt(inp.value, 10); };
+        row.append(thumb, lbl, inp);
+        stkListEl.appendChild(row);
+      });
+    };
     const drawStrip = () => {
       const s = $('fStrip'); s.textContent = '';
       imgs.forEach((it, i) => {
@@ -2697,15 +2741,16 @@ async function getEffectiveDecorSlides(){
         im.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); document.getElementById('vt-photo-ov-img').src = it.src; document.getElementById('vt-photo-ov').classList.add('on'); });
         im.addEventListener('click', e => { e.stopPropagation(); document.getElementById('vt-photo-ov-img').src = it.src; document.getElementById('vt-photo-ov').classList.add('on'); });
         const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '×';
-        x.onclick = () => { imgs.splice(i, 1); drawStrip(); };
+        x.onclick = () => { imgs.splice(i, 1); drawStrip(); drawStockList(); };
         const mk = document.createElement('button'); mk.type = 'button'; mk.className = 'mk'; mk.textContent = i === 0 ? 'Main ✓' : 'Main';
-        mk.onclick = () => { imgs.unshift(imgs.splice(i, 1)[0]); drawStrip(); };
+        mk.onclick = () => { imgs.unshift(imgs.splice(i, 1)[0]); drawStrip(); drawStockList(); };
         const nm = document.createElement('input'); nm.type = 'text'; nm.placeholder = 'Colour naam'; nm.value = it.name;
-        nm.oninput = () => { it.name = nm.value; };
-        const stk = document.createElement('input'); stk.type = 'number'; stk.min = '0'; stk.placeholder = 'Stock (pack)'; stk.value = it.stock != null ? it.stock : ''; stk.style.cssText = 'width:90px;font-size:.78rem;padding:3px 6px;border:1px solid #ccc;border-radius:4px;margin-top:3px;';
-        stk.oninput = () => { it.stock = stk.value === '' ? null : parseInt(stk.value, 10); };
-        w.append(im, x, mk, nm, stk); s.appendChild(w);
+        nm.oninput = () => { it.name = nm.value; drawStockList(); };
+        w.append(im, x, mk, nm); s.appendChild(w);
       });
+      // Strip ke baad stock list inject karo
+      if(!s.parentNode.contains(stkListEl)) s.parentNode.insertBefore(stkListEl, s.nextSibling);
+      drawStockList();
     };
     drawStrip();
     $('fFile').onchange = async () => {
@@ -2713,7 +2758,7 @@ async function getEffectiveDecorSlides(){
       setMsg('Photos aa rahi hain...', true);
       let bad = 0;
       for(const f of files){
-        try{ imgs.push({ src: await fileToDataURL(f, 2400, 1.0), name: '' }); drawStrip(); }catch(e){ bad++; }
+        try{ imgs.push({ src: await fileToDataURL(f, 2400, 1.0), name: '', stock: null }); drawStrip(); }catch(e){ bad++; }
       }
       $('fFile').value = '';
       setMsg(bad ? bad + ' photo padh nahi paaye.' : '');
@@ -3688,8 +3733,13 @@ async function getEffectiveDecorSlides(){
 
   // ---- Category Manager ----
   function showCatManager(){
-    // Built-in fixed categories
-    const FIXED_CATS = ['1 Piece','2 Piece','3 Piece'];
+    // Built-in fixed categories — can be renamed, stored in localStorage
+    const DEFAULT_CATS = ['1 Piece','2 Piece','3 Piece'];
+    function getFixedCats(){
+      const stored = JSON.parse(localStorage.getItem('vt_fixed_cats')||'null');
+      return stored || [...DEFAULT_CATS];
+    }
+    function saveFixedCats(arr){ localStorage.setItem('vt_fixed_cats', JSON.stringify(arr)); }
     // Extra categories from localStorage
     function getExtraCats(){ return JSON.parse(localStorage.getItem('vt_extra_cats')||'[]'); }
     function saveExtraCats(arr){ localStorage.setItem('vt_extra_cats', JSON.stringify(arr)); }
@@ -3701,12 +3751,12 @@ async function getEffectiveDecorSlides(){
       return Array.from(used);
     }
 
-    // All categories: fixed + extra
+    // All categories: fixed + extra + any from products
     function getAllCats(){
+      const fixed = getFixedCats();
       const extra = getExtraCats();
-      const all = [...FIXED_CATS];
+      const all = [...fixed];
       extra.forEach(c => { if(!all.includes(c)) all.push(c); });
-      // Also add any categories from products that aren't listed
       getAllUsedCats().forEach(c => { if(!all.includes(c)) all.push(c); });
       return all;
     }
@@ -3718,16 +3768,19 @@ async function getEffectiveDecorSlides(){
       CURRENT_PRODUCTS.forEach(p => {
         if(p.category === oldName){ p.category = newName; changed++; }
       });
-      // Update extra cats localStorage
+      // Update fixed cats if it was a fixed one
+      const fixed = getFixedCats();
+      const fi = fixed.indexOf(oldName);
+      if(fi >= 0){ fixed[fi] = newName; saveFixedCats(fixed); }
+      // Update extra cats
       const extra = getExtraCats().map(c => c === oldName ? newName : c);
-      // Also add newName if oldName was in fixed and newName is new
-      if(!extra.includes(newName) && !FIXED_CATS.includes(newName)) extra.push(newName);
-      saveExtraCats(extra.filter(c => !FIXED_CATS.includes(c)));
+      if(!extra.includes(newName) && fi < 0) extra.push(newName);
+      saveExtraCats(extra);
       return changed;
     }
 
     function deleteCategory(catName){
-      // Remove from extra cats
+      // Remove from extra cats only (fixed cats are not deletable from UI)
       const extra = getExtraCats().filter(c => c !== catName);
       saveExtraCats(extra);
       // Products with this category — set to null
@@ -3750,7 +3803,7 @@ async function getEffectiveDecorSlides(){
         const row = document.createElement('div');
         row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px 12px;background:#f9f5f0;border-radius:10px;border:1px solid #e8dece;';
 
-        const isFixed = FIXED_CATS.includes(cat);
+        const isFixed = getFixedCats().includes(cat);
         const usedCount = CURRENT_PRODUCTS.filter(p => p.category === cat).length;
 
         const nameInp = document.createElement('input');
@@ -3836,7 +3889,7 @@ async function getEffectiveDecorSlides(){
       wrap.appendChild(closeBtn);
 
       box.appendChild(wrap);
-      document.getElementById('pickOver').style.display = 'flex';
+      document.getElementById('pickSheet').classList.add('open'); document.body.style.overflow = 'hidden';
     }
 
     render();
@@ -3907,7 +3960,7 @@ async function getEffectiveDecorSlides(){
     wrap.appendChild(closeBtn);
 
     box.appendChild(wrap);
-    document.getElementById('pickOver').style.display = 'flex';
+    document.getElementById('pickSheet').classList.add('open'); document.body.style.overflow = 'hidden';
   }
 
   // WhatsApp par order aane par admin se manually add kar sakte hain
