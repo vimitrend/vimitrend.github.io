@@ -1425,7 +1425,7 @@ function pickClose(){ document.getElementById('pickSheet').classList.remove('ope
 function openPicker(p, colorIdx){
   const cols = getColors(p);
   const isD = p.type === 'decor';
-  const PSZ = isD ? [{ label:'', price:p.price }] : (p.sizes || []);
+  const PSZ = isD ? [{ label:'', price:p.price }] : ((p.variantSizes && p.variantSizes[colorIdx||0]) || p.sizes || []);
   // Cart mein jo items hain, unse q pre-fill karo (taki selection wapas dikhey)
   const q = {};
   CART.forEach(x => {
@@ -1670,47 +1670,32 @@ function drawDecor(list){
   });
 }
 let CATS = ['1 Piece', '2 Piece', '3 Piece'];
-let ACTIVE_CAT = 'All';
-let CAT_EXPANDED = false;
-const CAT_SHOW_MAX = 4; // "All" + 3 categories visible by default
+let ACTIVE_CAT = '';
 function getCategory(p){
   if(p.category && CATS.indexOf(p.category) >= 0) return p.category;
-  const m = /(?:^|[^0-9])([123])\s*[- ]?\s*(?:piece|pc|pcs)\b/i.exec(p.naam || '');
+  const m = /(?:^|[^0-9])([123])\\s*[- ]?\\s*(?:piece|pc|pcs)\\b/i.exec(p.naam || '');
   return m ? m[1] + ' Piece' : '';
 }
 function renderProducts(list){
-  // Dynamic CATS: products mein jo bhi categories hain woh add karo
   const dynCats = [];
   list.forEach(p => { const c = p.category; if(c && dynCats.indexOf(c) < 0 && CATS.indexOf(c) < 0) dynCats.push(c); });
   CATS = ['1 Piece', '2 Piece', '3 Piece'].concat(dynCats);
   const bar = document.getElementById('catBar');
   const present = CATS.filter(c => list.some(p => getCategory(p) === c));
-  if(ACTIVE_CAT !== 'All' && present.indexOf(ACTIVE_CAT) < 0) ACTIVE_CAT = 'All';
+  if(!present.includes(ACTIVE_CAT)) ACTIVE_CAT = present[0] || '';
   bar.textContent = '';
   const prevActiveKey = ACTIVE_CAT;
   if(present.length){
     bar.hidden = false;
-    const allCats = ['All'].concat(present);
-    // Sliding category bar — sab categories ek line mein, left-right scroll karo
-    const mk = (label, key, n) => {
-      const b = document.createElement('button'); b.type = 'button'; b.className = 'cat-chip' + (ACTIVE_CAT === key ? ' on' : '');
-      b.append(label);
-      if(n != null){ const sm = document.createElement('small'); sm.textContent = '(' + n + ')'; b.appendChild(sm); }
-      b.onclick = () => {
-        ACTIVE_CAT = key; renderProducts(list);
-        // Active chip ko scroll mein dikhao
-        setTimeout(() => { const on = bar.querySelector('.cat-chip.on'); if(on) on.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' }); }, 50);
-      };
+    present.forEach(c => {
+      const b = document.createElement('button'); b.type='button'; b.className='cat-chip'+(ACTIVE_CAT===c?' on':'');
+      b.append(c); const sm=document.createElement('small'); sm.textContent='('+list.filter(p=>getCategory(p)===c).length+')'; b.appendChild(sm);
+      b.onclick=()=>{ ACTIVE_CAT=c; renderProducts(list); setTimeout(()=>{const on=bar.querySelector('.cat-chip.on');if(on)on.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'});},50); };
       bar.appendChild(b);
-      return b;
-    };
-    allCats.forEach(c => {
-      const btn = mk(c, c, c === 'All' ? list.length : list.filter(p => getCategory(p) === c).length);
-      // Active chip ko view mein raho
-      if(c === prevActiveKey){ setTimeout(() => btn.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' }), 80); }
+      if(c===prevActiveKey)setTimeout(()=>b.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'}),80);
     });
-  } else bar.hidden = true;
-  drawProducts(ACTIVE_CAT === 'All' ? list : list.filter(p => getCategory(p) === ACTIVE_CAT));
+  } else bar.hidden=true;
+  drawProducts(ACTIVE_CAT ? list.filter(p=>getCategory(p)===ACTIVE_CAT) : list);
 }
 function showSkeleton(n){
   grid.innerHTML = Array(n || 4).fill(0).map(() =>
@@ -2597,7 +2582,7 @@ async function getEffectiveDecorSlides(){
     if(p) p.sizes.forEach(z => addSzRow(z.label, z.price, szPack(p, z) > 1 ? szPack(p, z) : '', z.qty || '')); else addSzRow('', '', '', '');
     $('fSzAdd').onclick = () => { const rows = szBox.querySelectorAll('.vt-szrow'), last = rows[rows.length - 1]; const r = addSzRow('', last ? last.querySelector('.szr').value : '', ''); r.querySelector('.szn').focus(); };
     const names0 = (p && p.colorNames) || [];
-    let imgs = p ? [p.photo].concat(p.gallery || []).filter(Boolean).map((src, k) => ({ src, name: (names0[k] || '') + '' })) : [];
+    let imgs = p ? [p.photo].concat(p.gallery || []).filter(Boolean).map((src, k) => ({ src, name: (names0[k] || '') + '', sizes: (p.variantSizes && p.variantSizes[k]) || null })) : [];
     const drawStrip = () => {
       const s = $('fStrip'); s.textContent = '';
       imgs.forEach((it, i) => {
@@ -2611,7 +2596,17 @@ async function getEffectiveDecorSlides(){
         mk.onclick = () => { imgs.unshift(imgs.splice(i, 1)[0]); drawStrip(); };
         const nm = document.createElement('input'); nm.type = 'text'; nm.placeholder = 'Colour naam'; nm.value = it.name;
         nm.oninput = () => { it.name = nm.value; };
-        w.append(im, x, mk, nm); s.appendChild(w);
+        const vd=document.createElement('button'); vd.type='button'; vd.className='mk'; vd.textContent='Size/Stock Details';
+        vd.style.cssText='display:block;width:100%;margin-top:5px;border:1px solid #bd9450;border-radius:7px;padding:7px;background:#fff;font:inherit;font-size:.78rem;color:#6b4f1d';
+        vd.onclick=()=>{
+          const current=it.sizes || (p && p.sizes ? p.sizes.map(z=>({label:z.label,price:z.price,pack:szPack(p,z)>1?szPack(p,z):undefined,qty:z.qty||0})) : []);
+          const raw=current.map(z=>[z.label,z.price,z.pack||'',z.qty||''].join(',')).join('\n');
+          const val=prompt('Har photo ke size alag likhein (har line: Size,Rate,Packing,Stock\nExample: M,420,,5)',raw);
+          if(val===null)return;
+          const parsed=[]; val.split(/\n/).forEach(line=>{const a=line.split(',').map(v=>v.trim());if(a[0]&&a[1]){const o={label:a[0],price:Number(a[1])};if(Number(a[2])>1)o.pack=Number(a[2]);if(Number(a[3])>0)o.qty=Number(a[3]);parsed.push(o);}});
+          it.sizes=parsed; toast('Photo ke size/stock details set ho gaye');
+        };
+        w.append(im, x, mk, nm, vd); s.appendChild(w);
       });
     };
     drawStrip();
@@ -2673,7 +2668,7 @@ async function getEffectiveDecorSlides(){
       const pending = $('fUrl').value.trim();
       if(/^https?:\/\//.test(pending) && !imgs.some(it => it.src === pending)) imgs.push({ src: pending, name: '' });
       const cn = imgs.map(it => it.name.trim());
-      const item = { naam, sizes, photo: imgs[0] ? imgs[0].src : null, gallery: imgs.slice(1).map(it => it.src), colorNames: cn.some(Boolean) ? cn : [], design: $('fDesign').value.trim() || null, sku: $('fSku').value.trim() || null, category: $('fCat').value || null, pack: null };
+      const item = { naam, sizes, photo: imgs[0] ? imgs[0].src : null, gallery: imgs.slice(1).map(it => it.src), colorNames: cn.some(Boolean) ? cn : [], design: $('fDesign').value.trim() || null, sku: $('fSku').value.trim() || null, category: $('fCat').value || null, pack: null, variantSizes: imgs.map(it=>it.sizes || null) };
       const list = CURRENT_PRODUCTS.slice();
       if(idx >= 0) list[idx] = item; else list.unshift(item);
       if(await persist(list)) showPanel(); else btn.disabled = false;
@@ -2729,7 +2724,7 @@ async function getEffectiveDecorSlides(){
       <div class="vt-row"><button class="vt-btn vt-primary" id="dSave">Save Karein</button><button class="vt-btn" id="dCancel">Cancel</button></div></div>`;
     if(p){ $('dName').value = p.naam; $('dMat').value = p.material || ''; $('dPow').value = p.power || ''; $('dDim').value = p.dimensions || ''; $('dPrice').value = p.price; $('dMrp').value = p.mrp || ''; }
     const names0 = (p && p.colorNames) || [];
-    let imgs = p ? [p.photo].concat(p.gallery || []).filter(Boolean).map((src, k) => ({ src, name: (names0[k] || '') + '' })) : [];
+    let imgs = p ? [p.photo].concat(p.gallery || []).filter(Boolean).map((src, k) => ({ src, name: (names0[k] || '') + '', sizes: (p.variantSizes && p.variantSizes[k]) || null })) : [];
     const drawStrip = () => {
       const st = $('fStrip'); st.textContent = '';
       imgs.forEach((it, i) => {
