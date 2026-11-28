@@ -3758,30 +3758,54 @@ async function getEffectiveDecorSlides(){
     document.body.style.overflow = 'hidden';
   }
 
+  let ORD_FILTER = 'all';
+  let ORD_SEARCH = '';
+  let ORD_DATE = '';
   function showOrders(){
-    // Date-wise sort: newest first
-    const orders = getOrders().sort((a,b)=>{
-      const da=a.date||'', db=b.date||'';
-      return da<db?1:da>db?-1:0;
-    });
-    // Count unique customer+date groups
-    const ordGroupCount = new Set(orders.map(o=>(o.customer||'')+'|||'+(o.date||''))).size;
-    root.innerHTML = `<div class="vt-box">
-      <div class="vt-head"><h2>📋 Orders (${ordGroupCount} orders, ${orders.length} items)</h2><button class="vt-btn" id="ordBack">← Wapas</button></div>
-      <div class="vt-actions">
-        <button class="vt-btn vt-primary" id="ordAdd">+ Naya Order</button>
-        <button class="vt-btn" id="ordPdf">🖨 Sab PDF</button>
-        <button class="vt-btn" id="ordCsv">📤 CSV Export</button>
-      </div>
-      <div class="vt-msg" id="ordMsg"></div>
-      <div id="ordList"></div></div>`;
-    $('ordBack').onclick = showPanel;
-    $('ordAdd').onclick = () => showOrderForm(-1);
-    $('ordCsv').onclick = () => exportOrdersCsv(orders);
-    $('ordPdf').onclick = () => printOrdersPdf(orders);
-    renderOrderList(orders);
+    const raw=getOrders();
+    const orders=raw.map((o,i)=>({...o,_origIdx:i})).sort((a,b)=>(a.date||'')<(b.date||'')?1:(a.date||'')>(b.date||'')?-1:0);
+    const allCount=new Set(orders.map(o=>(o.customer||'')+'|||'+(o.date||''))).size;
+    root.innerHTML = `<div class="vt-box"><div class="vt-head"><h2>📋 Orders (${allCount} orders, ${orders.length} items)</h2><button class="vt-btn" id="ordBack">← Wapas</button></div>
+      <div class="vt-actions"><button class="vt-btn vt-primary" id="ordAdd">+ Naya Order</button><button class="vt-btn" id="ordPdf">🖨 Sab PDF</button><button class="vt-btn" id="ordCsv">📤 CSV Export</button></div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;margin:10px 0"><button class="vt-btn" id="ordAll">All Orders</button><button class="vt-btn" id="ordConfirmed">✅ Confirmed</button><button class="vt-btn" id="ordRejected">❌ Rejected</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0"><input id="ordSearch" type="search" placeholder="🔎 Customer / mobile / product search" style="flex:1;min-width:170px;padding:10px;border:1px solid #d9d0bf;border-radius:8px"><input id="ordDate" type="date" style="padding:9px;border:1px solid #d9d0bf;border-radius:8px"></div>
+      <div class="vt-msg" id="ordMsg"></div><div id="ordList"></div></div>`;
+    $('ordBack').onclick=showPanel; $('ordAdd').onclick=()=>showOrderForm(-1); $('ordCsv').onclick=()=>exportOrdersCsv(orders); $('ordPdf').onclick=()=>printOrdersPdf(orders);
+    const refresh=()=>{ ORD_SEARCH=$('ordSearch').value.trim().toLowerCase(); ORD_DATE=$('ordDate').value; const f=orders.filter(o=>{const st=o.status||'Pending';const ok=ORD_FILTER==='all'||(ORD_FILTER==='confirmed'&&st==='Confirmed')||(ORD_FILTER==='rejected'&&st==='Rejected');const hay=[o.customer,o.mobile,o.product,o.colour,o.size,o.note].join(' ').toLowerCase();return ok&&(!ORD_SEARCH||hay.includes(ORD_SEARCH))&&(!ORD_DATE||o.date===ORD_DATE);});renderOrderList(f); };
+    $('ordSearch').oninput=refresh; $('ordDate').onchange=refresh;
+    $('ordAll').onclick=()=>{ORD_FILTER='all';refresh();}; $('ordConfirmed').onclick=()=>{ORD_FILTER='confirmed';refresh();}; $('ordRejected').onclick=()=>{ORD_FILTER='rejected';refresh();};
+    refresh();
   }
 
+  // Confirm hone par stock deduction; Rejected/Pending par stock unchanged.
+  async function changeOrderGroupStatus(group,status){
+    const arr=getOrders();
+    if(status==='Confirmed'){
+      const toDeduct=group.filter(({o,origIdx})=>arr[origIdx]&&!arr[origIdx]._stockDeducted&&o.status!=='Confirmed');
+      for(const {o,origIdx} of toDeduct){
+        const ok=await updateStockForOrder(o,-1);
+        if(!ok){ alert('Stock update nahi ho saka: '+(o.product||'product')+' / '+(o.size||'size')+'. Order confirm status save kar rahe hain, stock manually check karein.'); }
+        if(arr[origIdx]) arr[origIdx]._stockDeducted=true;
+      }
+    }
+    group.forEach(({origIdx})=>{if(arr[origIdx])arr[origIdx].status=status;}); saveOrders(arr); showOrders();
+  }
+  async function updateStockForOrder(o,dir){
+    const all=[...CURRENT_PRODUCTS,...CURRENT_DECOR]; const p=all.find(x=>x.naam===o.product); if(!p)return false;
+    const ci=Math.max(0,getColors(p).findIndex(c=>c.name===o.colour));
+    let sizes=(p.variantSizes&&p.variantSizes[ci]&&p.variantSizes[ci].length)?p.variantSizes[ci]:p.sizes;
+    if(!Array.isArray(sizes))return false;
+    const sz=sizes.find(x=>(x.label||'').toLowerCase()===(o.size||'').toLowerCase()); if(!sz)return false;
+    const qty=Math.max(0,parseInt(o.qty)||1); const current=parseInt(sz.qty)||0; sz.qty=Math.max(0,current+(dir*qty));
+    if(sizes===p.sizes){p.sizes=sizes;}else{p.variantSizes=p.variantSizes||[];p.variantSizes[ci]=sizes;}
+    if(CURRENT_DECOR.includes(p)) return await persistDecor(CURRENT_DECOR.slice());
+    return await persist(CURRENT_PRODUCTS.slice());
+  }
+  function editOrderCustomer(group){
+    const first=group[0].o;const name=prompt('Customer ka naam:',first.customer||'');if(name===null)return;
+    const mobile=prompt('Mobile / WhatsApp number:',first.mobile||'');if(mobile===null)return;
+    const arr=getOrders();group.forEach(({origIdx})=>{if(arr[origIdx]){arr[origIdx].customer=name.trim();arr[origIdx].mobile=mobile.trim();}});saveOrders(arr);showOrders();
+  }
   // Helper: order rows ko compressed URL format mein encode karo (chhota link)
   async function encodeOrdersLink(rows){
     try{
@@ -3814,7 +3838,8 @@ async function getEffectiveDecorSlides(){
     // Customer + date se group karo (ek customer ka ek din ka order = ek group)
     const groupMap = {};
     const groupKeys = [];
-    orders.forEach((o, origIdx) => {
+    orders.forEach((o, listIdx) => {
+      const origIdx = (o._origIdx!==undefined)?o._origIdx:listIdx;
       const key = (o.customer||'') + '|||' + (o.date||'');
       if(!groupMap[key]){ groupMap[key]=[]; groupKeys.push(key); }
       groupMap[key].push({o, origIdx});
@@ -3836,11 +3861,12 @@ async function getEffectiveDecorSlides(){
       let expanded = false; // Default band rahega
       const hdr = document.createElement('div');
       hdr.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:10px 12px;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none';
-      const statusColor=grpStatus==='Delivered'?'#128a4b':grpStatus==='Cancelled'?'#b3423a':'#bd9450';
-      const statusEmoji=grpStatus==='Delivered'?'✅':grpStatus==='Cancelled'?'❌':grpStatus==='Dispatched'?'🚚':grpStatus==='Packed'?'📦':grpStatus==='Confirmed'?'👍':'⏳';
+      const statusColor=(grpStatus==='Delivered'||grpStatus==='Confirmed')?'#128a4b':(grpStatus==='Cancelled'||grpStatus==='Rejected')?'#b3423a':'#bd9450';
+      const statusEmoji=grpStatus==='Delivered'?'✅':(grpStatus==='Cancelled'||grpStatus==='Rejected')?'❌':grpStatus==='Dispatched'?'🚚':grpStatus==='Packed'?'📦':grpStatus==='Confirmed'?'👍':'⏳';
       const grpTotal0=group.reduce((a,{o})=>a+(parseInt(o.amount)||0),0);
-      hdr.innerHTML=`<div><b style="font-size:.9rem;color:#3b3025">👤 ${firstO.customer||'—'}</b><span style="font-size:.7rem;color:#9a9080;margin-left:6px">${firstO.date||''}</span><br><span style="font-size:.74rem;color:#7a7062">${group.length} item${group.length>1?'s':''} • ₹${grpTotal0.toLocaleString('en-IN')}</span></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.76rem;font-weight:700;color:${statusColor}">${statusEmoji} ${grpStatus}</span><span class="ord-arr" style="font-size:.8rem;color:#9a9080;transition:transform .2s">▼</span></div>`;
+      hdr.innerHTML=`<div style="min-width:0"><b style="font-size:.9rem;color:#3b3025">👤 ${firstO.customer||'Customer'}</b><span style="font-size:.7rem;color:#9a9080;margin-left:6px">${firstO.date||''}</span><br><span style="font-size:.74rem;color:#7a7062">${firstO.mobile||'Mobile add karein'} • ${group.length} item${group.length>1?'s':''} • ₹${grpTotal0.toLocaleString('en-IN')}</span></div><div style="display:flex;align-items:center;gap:8px"><button class="ord-cust-edit" style="padding:4px 7px;border:1px solid #d9d0bf;border-radius:6px;background:#fff;font-size:.7rem">✏️</button><span style="font-size:.76rem;font-weight:700;color:${statusColor}">${statusEmoji} ${grpStatus}</span><span class="ord-arr" style="font-size:.8rem;color:#9a9080;transition:transform .2s">▼</span></div>`;
       card.appendChild(hdr);
+      hdr.querySelector('.ord-cust-edit').onclick=(ev)=>{ev.stopPropagation();editOrderCustomer(group);};
 
       // Expandable body
       const body = document.createElement('div');
@@ -3889,20 +3915,17 @@ async function getEffectiveDecorSlides(){
       // Action buttons row
       const bRow = document.createElement('div'); bRow.style.cssText='display:flex;gap:6px;margin-top:8px;flex-wrap:wrap';
 
-      // Status quick buttons (apply to ALL rows in group)
-      if(grpStatus !== 'Delivered'){
-        const okBtn=document.createElement('button'); okBtn.style.cssText='flex:1;min-width:60px;padding:7px 4px;border-radius:8px;border:2px solid #128a4b;background:#f4fbf6;color:#128a4b;font-size:.8rem;font-weight:600;cursor:pointer';
-        okBtn.textContent='✅ Deliver';
-        okBtn.onclick=()=>{ const arr=getOrders(); group.forEach(({origIdx})=>{ if(arr[origIdx]) arr[origIdx].status='Delivered'; }); saveOrders(arr); showOrders(); };
-        bRow.appendChild(okBtn);
+      // Confirm / Reject buttons (stock only on confirmation)
+      if(grpStatus!=='Confirmed'&&grpStatus!=='Rejected'&&grpStatus!=='Delivered'&&grpStatus!=='Cancelled'){
+        const okBtn=document.createElement('button');okBtn.style.cssText='flex:1;min-width:90px;padding:9px 5px;border-radius:8px;border:2px solid #128a4b;background:#f4fbf6;color:#128a4b;font-size:.8rem;font-weight:700;cursor:pointer';okBtn.textContent='✅ Confirm Order';
+        okBtn.onclick=()=>changeOrderGroupStatus(group,'Confirmed');bRow.appendChild(okBtn);
+        const noBtn=document.createElement('button');noBtn.style.cssText='flex:1;min-width:90px;padding:9px 5px;border-radius:8px;border:2px solid #b3423a;background:#fff8f8;color:#b3423a;font-size:.8rem;font-weight:700;cursor:pointer';noBtn.textContent='❌ Reject Order';
+        noBtn.onclick=()=>changeOrderGroupStatus(group,'Rejected');bRow.appendChild(noBtn);
       }
-      if(grpStatus !== 'Cancelled' && grpStatus !== 'Delivered'){
-        const noBtn=document.createElement('button'); noBtn.style.cssText='flex:1;min-width:60px;padding:7px 4px;border-radius:8px;border:2px solid #b3423a;background:#fff8f8;color:#b3423a;font-size:.8rem;font-weight:600;cursor:pointer';
-        noBtn.textContent='❌ Cancel';
-        noBtn.onclick=()=>{ const arr=getOrders(); group.forEach(({origIdx})=>{ if(arr[origIdx]) arr[origIdx].status='Cancelled'; }); saveOrders(arr); showOrders(); };
-        bRow.appendChild(noBtn);
+      if(grpStatus==='Confirmed'){
+        const delBtn=document.createElement('button');delBtn.style.cssText='flex:1;min-width:90px;padding:8px 5px;border-radius:8px;border:2px solid #128a4b;background:#f4fbf6;color:#128a4b;font-size:.8rem;font-weight:600;cursor:pointer';delBtn.textContent='✅ Deliver';
+        delBtn.onclick=()=>changeOrderGroupStatus(group,'Delivered');bRow.appendChild(delBtn);
       }
-
       // PDF button — group ke saare rows ek PDF mein
       const pBtn=document.createElement('button'); pBtn.style.cssText='flex:1;min-width:60px;padding:7px 4px;border-radius:8px;border:1px solid #bd9450;background:#fffdf9;color:#bd9450;font-size:.8rem;cursor:pointer';
       pBtn.textContent='🖨 PDF'; pBtn.onclick=()=>printOrdersPdf(group.map(g=>g.o));
@@ -3940,11 +3963,11 @@ async function getEffectiveDecorSlides(){
   function showOrderForm(idx){
     const o = idx>=0 ? getOrders()[idx] : {};
     const allProds = [...CURRENT_PRODUCTS,...CURRENT_DECOR];
-    const statusOpts = ['Pending','Confirmed','Packed','Dispatched','Delivered','Cancelled'];
+    const statusOpts = ['Pending','Confirmed','Rejected','Packed','Dispatched','Delivered','Cancelled'];
     root.innerHTML=`<div class="vt-box">
       <div class="vt-head"><h2>${idx>=0?'✏️ Order Edit':'➕ Naya Order'}</h2></div>
       <div class="vt-note" style="font-size:.78rem">WhatsApp pe order aaya? Product chunein, details bharo, Save dabao.</div>
-      <label>Customer Name ya WhatsApp No</label><input type="text" id="oName" placeholder="Jaise: Priya / 9876543210" value="${o.customer||''}">
+      <label>Customer Name</label><input type="text" id="oName" placeholder="Customer ka naam" value="${o.customer||''}"><label>Mobile / WhatsApp Number</label><input type="text" id="oMobile" placeholder="9876543210" value="${o.mobile||''}">
       <label>Date</label><input type="date" id="oDate" value="${o.date||new Date().toISOString().slice(0,10)}">
       <label>Product</label>
       <select id="oProd"><option value="">-- Product chunein --</option>${allProds.map(p=>`<option value="${p.naam}" ${o.product===p.naam?'selected':''}>${p.naam}</option>`).join('')}</select>
@@ -3998,17 +4021,17 @@ async function getEffectiveDecorSlides(){
     }
     $('oProd').onchange=fillProd; if(o.product) fillProd();
 
-    $('oSave').onclick = () => {
+    $('oSave').onclick = async () => {
       const naam=$('oProd').value; if(!naam){ const e=$('oMsg'); e.textContent='Product chunein.'; e.style.color='#b3423a'; return; }
-      const item={ customer:$('oName').value.trim(), date:$('oDate').value, product:naam, colour:$('oColour').value.trim(), size:$('oSize').value.trim(), qty:$('oQty').value.trim(), amount:$('oAmt').value.trim().replace(/[^0-9]/g,''), status:$('oStatus').value||'Pending', note:$('oNote').value.trim() };
-      const arr=getOrders(); if(idx>=0) arr[idx]=item; else arr.unshift(item); saveOrders(arr); showOrders();
+      const item={ customer:$('oName').value.trim(), mobile:$('oMobile').value.trim(), date:$('oDate').value, product:naam, colour:$('oColour').value.trim(), size:$('oSize').value.trim(), qty:$('oQty').value.trim(), amount:$('oAmt').value.trim().replace(/[^0-9]/g,''), status:$('oStatus').value||'Pending', note:$('oNote').value.trim() };
+      const arr=getOrders(); if(idx>=0){ const old=arr[idx]; item._stockDeducted=!!old._stockDeducted; if(item.status==='Confirmed'&&!item._stockDeducted){ const stockOk=await updateStockForOrder(item,-1); if(!stockOk) alert('Stock update nahi hua. Product/size stock manually check karein.'); item._stockDeducted=true; } arr[idx]=item; } else { if(item.status==='Confirmed'){ const stockOk=await updateStockForOrder(item,-1); if(!stockOk) alert('Stock update nahi hua. Product/size stock manually check karein.'); item._stockDeducted=true; } arr.unshift(item); } saveOrders(arr); showOrders();
     };
   }
 
   function exportOrdersCsv(orders){
     if(!orders.length){ setMsg('Koi order nahi hai.'); return; }
-    const rows=[['Date','Customer','Product','Colour','Size','Qty','Amount','Status','Note']];
-    orders.forEach(o=>rows.push([o.date||'',o.customer||'',o.product||'',o.colour||'',o.size||'',o.qty||'',o.amount||'',o.status||'',o.note||'']));
+    const rows=[['Date','Customer','Mobile','Product','Colour','Size','Qty','Amount','Status','Note']];
+    orders.forEach(o=>rows.push([o.date||'',o.customer||'',o.mobile||'',o.product||'',o.colour||'',o.size||'',o.qty||'',o.amount||'',o.status||'',o.note||'']));
     const BOM='﻿', csv=rows.map(r=>r.map(c=>'"'+(c+'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
     const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([BOM+csv],{type:'text/csv;charset=utf-8'}));
     a.download='vimitrend-orders-'+new Date().toISOString().slice(0,10)+'.csv'; document.body.appendChild(a); a.click(); a.remove();
